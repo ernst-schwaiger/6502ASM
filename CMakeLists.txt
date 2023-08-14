@@ -26,7 +26,7 @@ set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/antlr/antlr-4.13.0-complete.jar
 find_package(ANTLR REQUIRED)
 
 # Generate lexer/parser/listener classes out of the grammar file
-antlr_target(MOS6502Parser antlr/MOS6502.g4
+antlr_target(MOS6502Parser MOS6502.g4
             OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated/antlr4
             LEXER
             PARSER
@@ -36,6 +36,9 @@ antlr_target(MOS6502Parser antlr/MOS6502.g4
 # Include the static antlr runtime folders and generated lexer, parser, listener classes
 include_directories(${ANTLR4_INCLUDE_DIRS})
 include_directories(${ANTLR_MOS6502Parser_OUTPUT_DIR})
+
+message(STATUS "OUTDIR=${ANTLR_MOS6502Parser_OUTPUT_DIR}")
+message(STATUS "OUTFILES=${ANTLR_MOS6502Parser_CXX_OUTPUTS}")
 
 #
 # 6502 Assembler binary
@@ -56,6 +59,6 @@ add_executable(MOS6502ListenerTest
     src/listener/MOS6502Listener.cpp
     ${ANTLR_MOS6502Parser_CXX_OUTPUTS}
     )
-target_include_directories(MOS6502ListenerTest PRIVATE ${CMAKE_SOURCE_DIR}/../catch2)
+target_include_directories(MOS6502ListenerTest PRIVATE ${CMAKE_SOURCE_DIR}/test/catch2)
 target_link_libraries(MOS6502ListenerTest PRIVATE antlr4_static)
 add_test(NAME MOS6502Listener_test COMMAND MOS6502Listener_test)
