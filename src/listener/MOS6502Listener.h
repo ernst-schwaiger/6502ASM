@@ -1,12 +1,12 @@
 /*
- * CMOS6502Listener.h
+ * MOS6502Listener.h
  *
  *  Created on: 19.08.2018
  *      Author: Ernst
  */
 
-#ifndef CMOS6502LISTENER_H_
-#define CMOS6502LISTENER_H_
+#ifndef MOS6502LISTENER_H_
+#define MOS6502LISTENER_H_
 
 #include <map>
 #include <memory>
@@ -183,6 +183,12 @@ private:
 			pPrevCodeLine = &codeLine;
 		}
 
+		if (currMemBlockBytes.size() > 0)
+		{
+			memBlocks.push_back(MemBlock(currMemBlockAddress, currMemBlockBytes));
+			currMemBlockBytes.clear();
+		}
+
 		return memBlocks;
 	}
 
@@ -196,11 +202,11 @@ private:
 
 
 
-class CMOS6502Listener : public MOS6502BaseListener
+class MOS6502Listener : public MOS6502BaseListener
 {
 public:
-	CMOS6502Listener();
-	virtual ~CMOS6502Listener();
+	MOS6502Listener();
+	virtual ~MOS6502Listener();
 
 	void exitOrg_directive(MOS6502Parser::Org_directiveContext * /*ctx*/) override;
 	void exitByte_directive(MOS6502Parser::Byte_directiveContext * /*ctx*/) override;
@@ -262,4 +268,4 @@ private:
 
 } /* namespace asm6502 */
 
-#endif /* CMOS6502LISTENER_H_ */
+#endif /* MOS6502LISTENER_H_ */

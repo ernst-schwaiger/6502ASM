@@ -4,14 +4,14 @@
             stack = $100
 
             .ORG $2000
-x           .BYTE $1
-y           .BYTE $1
+x           .BYTE $20
+y           .BYTE $21
 tmp16       .WORD $0000
 
             ;
             ; code
             ;
-            .ORG $2100
+            .ORG $C000
 
             ;
             ; mul 8bit, 8bit -> 16bit
@@ -79,34 +79,6 @@ mul2_end    TXS
             RTS
             
             ;
-            ; div: dividend16/divisor8
-            ;
-div2        TSX
-            CMP stack + 1,x     ; check divisor for non 0
-            BNE divnon0
-            LDA #$0
-            STA stack + 4,x     ; return value = 0 -> dividend low
-            PLA                 ; move return address
-            STA stack + 2,x     ; to divisor
-            PLA                 ; remove now useless dividend high
-            RTS
-divnon0     LDA stack + 4,x     ; copy dividend into local stack
-            PHA
-            SBC stack + 3,x
-            PHA
-            TSX
-            LDA #$0             ; return value
-            STA stack + 6,x
-            SEC
-            LDA stack + 4,x
-            SBC stack + 2,x     ; subtract low part
-            PHA     
-            LDA stack + 2,x
-            SBC stack + 1,x
-            
-          
-
-            ;
             ; main
             ;
             .ORG $400
@@ -121,5 +93,5 @@ divnon0     LDA stack + 4,x     ; copy dividend into local stack
             STA tmp16 + 1       ; high byte of result
             PLA
             STA tmp16           ; low byte of result
-end         BRK
+end         RTS
 .END

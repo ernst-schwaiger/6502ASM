@@ -1,5 +1,5 @@
 /*
- * CMOS6502Listener.cpp
+ * MOS6502Listener.cpp
  *
  *  Created on: 19.08.2018
  *      Author: Ernst
@@ -144,7 +144,7 @@ public:
 		return ret;
 	}
 
-	virtual void addSymbol(string const &symbol, unsigned int val)
+	virtual void addSymbol(string const &symbol, unsigned int val) override
 	{
 		auto pos = symbols.find(symbol);
 
@@ -167,7 +167,6 @@ public:
 
 	virtual ~DummySymbolTable()
 	{
-		cout << "In dtor of symbol table" << endl;
 	}
 
 private:
@@ -223,7 +222,7 @@ private:
 };
 
 
-CMOS6502Listener::CMOS6502Listener()  :
+MOS6502Listener::MOS6502Listener()  :
 		currentAddress{0},
 		addressOfLine{-1},
 		branchTargets{},
@@ -236,18 +235,18 @@ CMOS6502Listener::CMOS6502Listener()  :
 
 }
 
-CMOS6502Listener::~CMOS6502Listener()
+MOS6502Listener::~MOS6502Listener()
 {
 	// TODO Auto-generated destructor stub
 }
 
-void CMOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ctx)
+void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ctx)
 {
 	currentAddress = popExpression();
 	addressOfLine = currentAddress;
 }
 
-void CMOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext * ctx)
+void MOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext * ctx)
 {
 	for (auto byte : popAllExpressions())
 	{
@@ -256,7 +255,7 @@ void CMOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext *
 	}
 }
 
-void CMOS6502Listener::exitWord_directive(MOS6502Parser::Word_directiveContext *ctx)
+void MOS6502Listener::exitWord_directive(MOS6502Parser::Word_directiveContext *ctx)
 {
 	for (auto word : popAllExpressions())
 	{
@@ -265,7 +264,7 @@ void CMOS6502Listener::exitWord_directive(MOS6502Parser::Word_directiveContext *
 	}
 }
 
-void CMOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext *ctx)
+void MOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext *ctx)
 {
 	for (auto dbyte : popAllExpressions())
 	{
@@ -274,28 +273,28 @@ void CMOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext
 	}
 }
 
-void CMOS6502Listener::exitLabel(MOS6502Parser::LabelContext *ctx)
+void MOS6502Listener::exitLabel(MOS6502Parser::LabelContext *ctx)
 {
 	symbolTable->addSymbol(ctx->ID()->getText(), currentAddress);
 }
 
-void CMOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx)
+void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx)
 {
 	symbolTable->addSymbol(ctx->ID()->getText(), popExpression());
 }
 
-void CMOS6502Listener::exitDir_statement(MOS6502Parser::Dir_statementContext *ctx)
+void MOS6502Listener::exitDir_statement(MOS6502Parser::Dir_statementContext *ctx)
 {
 	appendByteToPayload(findOpCode(dir_opcodes, ctx->dir_opcode()->getText()));
 }
 
-void CMOS6502Listener::exitImm_statement(MOS6502Parser::Imm_statementContext *ctx)
+void MOS6502Listener::exitImm_statement(MOS6502Parser::Imm_statementContext *ctx)
 {
 	appendByteToPayload(findOpCode(imm_opcodes, ctx->imm_opcode()->getText()));
 	appendByteToPayload(popExpression());
 }
 
-void CMOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx)
+void MOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx)
 {
 	appendByteToPayload(findOpCode(rel_opcodes, ctx->rel_opcode()->getText()));
 
@@ -307,7 +306,7 @@ void CMOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ct
 	++currentAddress;
 }
 
-void CMOS6502Listener::exitIdx_x_statement(MOS6502Parser::Idx_x_statementContext *ctx)
+void MOS6502Listener::exitIdx_x_statement(MOS6502Parser::Idx_x_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idx_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(idx_x_opcodes, idx_x_zpg_opcodes, opcodeStr);
@@ -315,7 +314,7 @@ void CMOS6502Listener::exitIdx_x_statement(MOS6502Parser::Idx_x_statementContext
 	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
 }
 
-void CMOS6502Listener::exitIdx_y_statement(MOS6502Parser::Idx_y_statementContext *ctx)
+void MOS6502Listener::exitIdx_y_statement(MOS6502Parser::Idx_y_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idy_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(idx_y_opcodes, idx_y_zpg_opcodes, opcodeStr);
@@ -323,7 +322,7 @@ void CMOS6502Listener::exitIdx_y_statement(MOS6502Parser::Idx_y_statementContext
 	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
 }
 
-void CMOS6502Listener::exitIdx_abs_statement(MOS6502Parser::Idx_abs_statementContext *ctx)
+void MOS6502Listener::exitIdx_abs_statement(MOS6502Parser::Idx_abs_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idabs_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(abs_opcodes, abs_zpg_opcodes, opcodeStr);
@@ -331,7 +330,7 @@ void CMOS6502Listener::exitIdx_abs_statement(MOS6502Parser::Idx_abs_statementCon
 	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
 }
 
-void CMOS6502Listener::exitIdx_idr_statement(MOS6502Parser::Idx_idr_statementContext *ctx)
+void MOS6502Listener::exitIdx_idr_statement(MOS6502Parser::Idx_idr_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
 	auto opcode = findOpCode(idx_idr_opcodes, opcodeStr);
@@ -341,7 +340,7 @@ void CMOS6502Listener::exitIdx_idr_statement(MOS6502Parser::Idx_idr_statementCon
 	appendByteToPayload(operand & 0xff);
 }
 
-void CMOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementContext *ctx)
+void MOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
 	auto opcode = findOpCode(idr_idx_opcodes, opcodeStr);
@@ -352,7 +351,7 @@ void CMOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementCon
 }
 
 
-void CMOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, unsigned int operand)
+void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, unsigned int operand)
 {
 	if (operand <= 0xff && opcode_zpg > 0)
 	{
@@ -367,7 +366,7 @@ void CMOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opc
 	}
 }
 
-void CMOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ctx)
+void MOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ctx)
 {
 	// there is only JMP: 0x6C
 	appendByteToPayload(jmp_indir_opcode);
@@ -377,7 +376,7 @@ void CMOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ct
 }
 
 
-void CMOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
+void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 {
 	function<unsigned int(unsigned int, unsigned int)> const *op = nullptr;
 	if (ctx->ADD() != nullptr)
@@ -407,13 +406,13 @@ void CMOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 	}
 }
 
-void CMOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
+void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 {
 	unsigned int symbolVal = symbolTable.get()->resolveSymbol(ctx->ID()->getText());
 	expressionStack.emplace_back(make_shared<Numeric>(symbolVal));
 }
 
-void CMOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
+void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 {
 	int val = convertDec(ctx->getText());
 	expressionStack.emplace_back(make_shared<Numeric>(val));
@@ -421,14 +420,14 @@ void CMOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 //	cout << "Dec8Val: " << val << endl;
 }
 
-void CMOS6502Listener::exitDec(MOS6502Parser::DecContext * ctx)
+void MOS6502Listener::exitDec(MOS6502Parser::DecContext * ctx)
 {
 	int val = convertDec(ctx->getText());
 	expressionStack.emplace_back(make_shared<Numeric>(val));
 	//cout << "DecVal: " << val << endl;
 }
 
-void CMOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
+void MOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
 {
 	// w/o leading $ sign
 	int val = convertHex(ctx->getText().substr(1));
@@ -436,7 +435,7 @@ void CMOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
 	//cout << "Hex16Val: " << val << endl;
 }
 
-void CMOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
+void MOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
 {
 	// w/o leading $ sign
 	int val = convertHex(ctx->getText().substr(1));
@@ -444,7 +443,7 @@ void CMOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
 	//cout << "Hex8Val: " << val << endl;
 }
 
-void CMOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
+void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
 {
 	// w/o leading % sign
 	int val = convertBin(ctx->getText().substr(1));
@@ -452,7 +451,7 @@ void CMOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
 	cout << "BinVal: " << val << endl;
 }
 
-void CMOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
+void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
 {
 	// w/o leading/trailing apos
 	int val = ctx->getText()[1];
@@ -460,7 +459,7 @@ void CMOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
 	//cout << "CharVal: " << val << endl;
 }
 
-void CMOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
+void MOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
 {
 	auto stringWithQuotes = ctx->STRING()->getText();
 	auto stringNoQuotes = stringWithQuotes.substr(1, stringWithQuotes.length() - 2);
@@ -471,7 +470,7 @@ void CMOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
 	}
 }
 
-unsigned int CMOS6502Listener::convertDec(string const &dec) const
+unsigned int MOS6502Listener::convertDec(string const &dec) const
 {
 	int ret = 0;
 	stringstream ss;
@@ -481,7 +480,7 @@ unsigned int CMOS6502Listener::convertDec(string const &dec) const
 	return ret;
 }
 
-unsigned int CMOS6502Listener::convertHex(string const &hexa) const
+unsigned int MOS6502Listener::convertHex(string const &hexa) const
 {
 	int ret = 0;
 	stringstream ss;
@@ -491,7 +490,7 @@ unsigned int CMOS6502Listener::convertHex(string const &hexa) const
 	return ret;
 }
 
-unsigned int CMOS6502Listener::convertBin(string const &bin) const
+unsigned int MOS6502Listener::convertBin(string const &bin) const
 {
 	int ret = 0;
 
@@ -508,7 +507,7 @@ unsigned int CMOS6502Listener::convertBin(string const &bin) const
 	return ret;
 }
 
-void CMOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
+void MOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
 {
 	unsigned int startAddress = 0;
 	unsigned int numberOfBytes = 0;
@@ -524,7 +523,7 @@ void CMOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
 	addressOfLine = -1;
 }
 
-void CMOS6502Listener::resolveBranchTargets()
+void MOS6502Listener::resolveBranchTargets()
 {
 	for (auto foo : branchTargets)
 	{
@@ -539,17 +538,18 @@ void CMOS6502Listener::resolveBranchTargets()
 	}
 }
 
-void CMOS6502Listener::outputPayload()
+void MOS6502Listener::outputPayload()
 {
+	cout << "--- MACHINE CODE ---" << std::endl;
+
 	for (auto codeLine : codeLines)
 	{
 		cout << codeLine.get(payload);
 	}
 
-
 	MemBlocks memBlocks(codeLines, payload);
 
-	cout << "--- mem blocks ---" << std::endl;
+	cout << std::endl << "--- BASIC ---" << std::endl << std::endl;
 
 	cout << "100 read nb" << std::endl;
 	cout << "110 for bi = 1 to nb" << std::endl;
@@ -599,14 +599,14 @@ void CMOS6502Listener::outputPayload()
 	}
 }
 
-unsigned int CMOS6502Listener::popExpression()
+unsigned int MOS6502Listener::popExpression()
 {
 	unsigned int ret = expressionStack.back()->eval(symbolTable.get());
 	expressionStack.pop_back();
 	return ret;
 }
 
-vector<unsigned int> CMOS6502Listener::popAllExpressions()
+vector<unsigned int> MOS6502Listener::popAllExpressions()
 {
 	vector<unsigned int> ret;
 
@@ -621,7 +621,7 @@ vector<unsigned int> CMOS6502Listener::popAllExpressions()
 	return ret;
 }
 
-void CMOS6502Listener::appendByteToPayload(unsigned char byte)
+void MOS6502Listener::appendByteToPayload(unsigned char byte)
 {
 	if (addressOfLine < 0)
 	{
@@ -632,7 +632,7 @@ void CMOS6502Listener::appendByteToPayload(unsigned char byte)
 }
 
 
-void CMOS6502Listener::addWordToPayload(unsigned short word)
+void MOS6502Listener::addWordToPayload(unsigned short word)
 {
 	unsigned char lsb = word & 0xff;
 	unsigned char msb = (word >> 8) & 0xff;
@@ -642,7 +642,7 @@ void CMOS6502Listener::addWordToPayload(unsigned short word)
 	appendByteToPayload(msb);
 }
 
-void CMOS6502Listener::addDByteToPayload(unsigned short dbyte)
+void MOS6502Listener::addDByteToPayload(unsigned short dbyte)
 {
 	unsigned char lsb = dbyte & 0xff;
 	unsigned char msb = (dbyte >> 8) & 0xff;

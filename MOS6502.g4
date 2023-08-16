@@ -92,7 +92,7 @@ BIN8                : PERCENT ([01] | [01][01] | [01][01][01] | [01][01][01][01]
                     | [01][01][01][01][01][01][01][01]);
 HEX8                : DOLLAR ([0-9a-fA-F] | [0-9a-fA-F][0-9a-fA-F]);
 HEX16               : DOLLAR ([0-9a-fA-F][0-9a-fA-F][0-9a-fA-F] | [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]);
-DEC                 : '0' | [1-9][0-9]*;
+DEC                 : [1-9][0-9]*; // '0' is not included, since that is is covered in DEC8
 
 IDX_X               : COMMA ('x'|'X');
 IDX_Y               : COMMA ('y'|'Y');

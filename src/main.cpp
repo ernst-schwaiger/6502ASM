@@ -29,7 +29,7 @@ void parseStreamOutputPayload(std::ifstream &stream)
 	MOS6502Lexer lexer(&input);
 	CommonTokenStream tokens(&lexer);
 	MOS6502Parser parser(&tokens);
-	asm6502::CMOS6502Listener listener;
+	asm6502::MOS6502Listener listener;
 
 	parser.addParseListener(&listener);
 

@@ -2,7 +2,7 @@
             ; data segment
             ;
             .ORG $200
-myString    .BYTE "dies ist ein test", 0
+myString    .BYTE "this is a test", 0
             .ORG $220
 toBeFilled  .BYTE "                 " ; // here the sting will be copied
             .ORG $80
@@ -29,7 +29,7 @@ ADC #99
 ADC #20
 ADC #'_'
 ADC #'#'
-;depp ADC #'a'
+;foo ADC #'a'
 ADC #%00000000
 ADC #%11111111
 ADC #%00011100
@@ -50,16 +50,16 @@ ADC $1234,y
 ADC 7834,x
 ADC 256
 ADC %010,y
-ADC [depp,x]
-ADC [depp],y
+ADC [foo,x]
+ADC [foo],y
 ADC [$fecb],y
 BRK;
 JMP (12345)
-BNE depp
+BNE foo
 
-ADC (DEPP - 3) / FOO
-.BYTE 12345, 23, %00001111, $ff, 3 + 4, 'f', orsch
-.BYTE "orsch2", 'a', depp
+ADC (FOO - 3) / FOO
+.BYTE 12345, 23, %00001111, $ff, 3 + 4, 'f', bar
+.BYTE "bar2", 'a', foo
 
 SBC A + B / C
 SBC (A + B) / C
