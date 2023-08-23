@@ -45,3 +45,13 @@ make -j
 250 data 208,200,208,250
 260 data  96
 ```
+
+## ToDos
+Fix Bug: Expression stack is not empty after assembly function processing
+Fix Bug: Error Listener error does not prevent codegen, codegen may crash
+Fix Bug: Determine if operands are immediate or not. If immediate but the expression
+cannot be evaluated, create two byte operations nevertheless!
+Improve Assembly output, insert blanks between TOKENs
+Add semantic checks: Indexed indirect, indirect indexed on non-zero base
+Add warning: zero-page defined after code that references it. zero-page opt cannot be made
+(does non zero page with zero page operand actually work?)
