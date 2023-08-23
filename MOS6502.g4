@@ -58,13 +58,13 @@ hex16               : HEX16;
 dec                 : DEC;
 
 
-expression          : expression (DIV | MUL) expression
+expression          : expression (DIV | MUL | PERCENT) expression
                     | expression (SUB | ADD) expression
                     | symbol
                     | numerical 
                     | LBRACE expression RBRACE;
                     
-label               : ID;
+label               : ID COLON;
 symbol              : ID;
 
 numerical_byte      : dec8 | char8 | bin8 | hex8;
@@ -113,6 +113,7 @@ SUB                 : '-';
 DIV                 : '/';
 MUL                 : '*';
 EQUALS              : '=';
+COLON               : ':';
 ID                  : [_a-zA-Z][_a-zA-Z0-9]* ;             // C style identifier
 
 // skip everything between semicolon and newline, skip any other kind of WS
