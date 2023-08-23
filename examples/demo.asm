@@ -2,25 +2,25 @@
             ; data segment
             ;
             .ORG $200
-myString    .BYTE "this is a test", 0
+myString:   .BYTE "this is a test", 0
             .ORG $220
-toBeFilled  .BYTE "                 " ; // here the sting will be copied
+toBeFilled: .BYTE "                 " ; // here the sting will be copied
             .ORG $80
-src         .WORD myString
-dest        .WORD toBeFilled
+src:        .WORD myString
+dest:       .WORD toBeFilled
             ;
             ; code
             ;
             .ORG $400
             LDY #0
-strcpy      LDA [src],y
+strcpy:     LDA [src],y
             STA [dest],y
             INY
             BNE strcpy
-end_strcpy  BRK
+end_strcpy: BRK
             .ORG $500 ; just testing rubbish
-label SBC 42 ;comment
-label2 ADC #12
+label: SBC 42 ;comment
+label2: ADC #12
 ;comment again
 ADC #0
 ADC #255

@@ -1,97 +1,77 @@
             ;
-            ; data segment
+            ; two unsigned multiply functions, result is two times the size of operands
+            ; to guarantee that no overflows can happen
             ;
-            stack = $100
+
+            .ORG $FB ; zero page
+            ;
+            ; data segment for uint8 * uint8 -> uint16
+            ;
+x8:         .BYTE $20
+y8:         .BYTE $21
+result16:   .WORD $0000
+
+            .ORG $4000
+            ;
+            ; data segment for uint16 * uint16 -> uint32
+            ;
+x16:        .WORD $1234
+y16:        .WORD $5678
+result32:   .BYTE 0,0,0,0
 
             .ORG $2000
-x           .BYTE $20
-y           .BYTE $21
-tmp16       .WORD $0000
-
             ;
-            ; code
+            ; MUL8: uint8 * uint8 -> uint16
             ;
-            .ORG $C000
-
-            ;
-            ; mul 8bit, 8bit -> 16bit
-            ;
-            ; X   (SP + 4)
-            ; Y   (SP + 3)
-            ; RET (SP + 1)
-            ; SP 
-mul         TSX
+            LDX #8              ; loop count
+            LDA #0
+            STA result16
+            STA result16 + 1
+startloop:  ASL result16
+            ROL result16 + 1
+            ASL y8
+            BCC endloop
             CLC
-            LDY stack + 3,x     ; Y -> Y reg
-            BEQ mul_zero_y
-            LDA #$0
-            STA stack + 3,x     ; clear high byte of result            
-            LDA stack + 4,x     ; X -> Accumulator
-            BEQ mul_zero_x
-mul_loop    DEY
-            BEQ mul_end
-            ADC stack + 4,x
-            BCC mul_loop
-            STA stack,x         ; save low byte
-            LDA stack + 3,x     ; increment high byte
-            ADC #$0
-            STA stack + 3,x
-            LDA stack,x         ; reload low byte
-            JMP mul_loop
-mul_zero_y  LDA #$0             ; Y was zero -> zero X
-mul_end     STA stack + 4,x     ; write back lower byte of result or zero
+            LDA x8
+            ADC result16
+            STA result16
+            BCC endloop
+            INC result16 + 1
+endloop:    DEX
+            BNE startloop
             RTS
-mul_zero_x  LDA #$0             ; X was zero -> zero Y
-            STA stack + 3,x     ; write back zero
+
+            .ORG $2100
+            ;
+            ; MUL16: uint16 * uint16 -> uint32
+            ;
+            LDX #16 ; counter
+            LDA #$00
+            STA result32
+            STA result32 + 1
+            STA result32 + 2
+            STA result32 + 3
+            JMP skip
+startloop2: ASL result32
+            ROL result32 + 1
+            ROL result32 + 2
+            ROL result32 + 3
+skip:       ASL y16
+            ROL y16 + 1
+            BCC endloop2
+            CLC
+            LDA x16
+            ADC result32
+            STA result32
+            LDA x16 + 1
+            ADC result32 + 1
+            STA result32 + 1
+            BCC endloop2
+            INC result32 + 2
+            BCC endloop2
+            INC result32 + 3
+endloop2:   DEX
+            BNE startloop2
             RTS
-            ;
-            ; mul2
-            ;
-mul2        TSX
-            LDA stack + 4,x     ; X
-            PHA
-            LDA stack + 3,x     ; Y
-            TAY
-            LDA #$0             ; high byte of temp sum
-            PHA            
-            STA stack + 4,x     ; return value ->0
-            STA stack + 3,x
-            LDA stack,x         ; check any factor against 0
-            BEQ mul2_end        ; -> we are finished
-            TYA
-            BEQ mul2_end
-mul2_loop   LSR                 
-            BCC mul2_shfac
-            TAY                 ; carry set -> add current
-            CLC                 ; factor to return value
-            LDA stack,x
-            ADC stack + 4,x
-            STA stack + 4,x
-            LDA stack - 1,x
-            ADC stack + 3,x
-            STA stack + 3,x
-            TYA
-mul2_shfac  BEQ mul2_end  
-            ROL stack,x         ; setup next order bit factor
-            ROL stack - 1,x
-            JMP mul2_loop
-mul2_end    TXS
-            RTS
-            
-            ;
-            ; main
-            ;
-            .ORG $400
-            ; first arg
-            LDA (x)
-            PHA
-            ; second arg
-            LDA (y)
-            PHA
-            JSR mul
-            PLA 
-            STA tmp16 + 1       ; high byte of result
-            PLA
-            STA tmp16           ; low byte of result
-end         RTS
+
 .END
