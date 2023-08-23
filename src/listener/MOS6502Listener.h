@@ -13,199 +13,51 @@
 #include <vector>
 #include <utility>
 #include <iomanip>
-
+#include <string>
+#include <optional>
 
 #include "MOS6502BaseListener.h"
+#include "SymbolTable.h"
+#include "CodeLine.h"
+#include "SemanticError.h"
 
 namespace asm6502
 {
 
-class ISymbolTable
-{
-public:
-	virtual ~ISymbolTable() {};
-	virtual unsigned int resolveSymbol(std::string const &symbol) const = 0;
-	virtual void addSymbol(std::string const &symbol, unsigned int val) = 0;
-};
+typedef std::optional<unsigned int> TOptExprValue;
 
 class IExpression
 {
 public:
 	virtual ~IExpression() {};
-	virtual unsigned int eval(ISymbolTable const *symbolTable) const = 0;
+	virtual TOptExprValue eval(SymbolTable const &symbolTable) const = 0;
 };
 
-// Models a complete Line statement, a start address and a byte length
-// to associate assembler code and the bytes that have been generated
-// for it
-class CodeLine
+// Implements a deferred expression evaluation for commands that use
+// absolute, indirect, indexed commands where the base address may be defined
+// after the statement, i.e. is not yet known
+class DeferredExpressionEval
 {
 public:
-	CodeLine(MOS6502Parser::LineContext *_ctx, unsigned int _startAddress, unsigned int _lengthBytes) :
-		ctx {_ctx},
-		startAddress {_startAddress },
-		lengthBytes {_lengthBytes}
-		{};
-
-	std::string get(std::map<unsigned int, unsigned char> const &payload)
-	{
-		std::stringstream strm;
-		int column = 0;
-
-		std::string pl = getPayload(payload);
-
-		strm << pl;
-		column += pl.length();
-
-		while (column < 24)
-		{
-			strm << " ";
-			column++;
-		}
-
-		MOS6502Parser::LabelContext *labelCtx = ctx->label();
-
-		if (labelCtx)
-		{
-			strm << labelCtx->getText();
-			column += labelCtx->getText().length();
-		}
-
-		while (column < 36)
-		{
-			strm << " ";
-			column++;
-		}
-		MOS6502Parser::DirectiveContext *dirCtx = ctx->directive();
-		MOS6502Parser::StatementContext *stmntCtx = ctx->statement();
-
-		strm << (dirCtx ? dirCtx->getText() : stmntCtx->getText()) << std::endl;
-
-		return strm.str();
-	}
-
-	std::string getPayload(std::map<unsigned int, unsigned char> const &payload)
-	{
-		std::stringstream strm;
-
-		if (lengthBytes > 0)
-		{
-			strm << "0x" << std::hex << std::setw(4) << std::setfill('0') << startAddress << ":";
-
-			unsigned int lastByteAddr = startAddress + (lengthBytes - 1);
-
-			for (unsigned int addr = startAddress; addr < lastByteAddr; addr++)
-			{
-				strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(payload.at(addr)) << ",";
-			}
-
-			strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(payload.at(lastByteAddr));
-			strm << " ";
-		}
-
-		return strm.str();
-	}
-
-	unsigned int getStartAddress() const
-	{
-		return startAddress;
-	}
-
-	unsigned int getLengthBytes() const
-	{
-		return lengthBytes;
-	}
-
-private:
-	MOS6502Parser::LineContext *ctx;
-	unsigned int const startAddress;
-	unsigned int const lengthBytes;
-};
-
-class MemBlock
-{
-public:
-	MemBlock(unsigned int startAddress, std::vector<unsigned char> const &bytes) :
-		_startAddress(startAddress),
-		_bytes(bytes)
+	DeferredExpressionEval(unsigned char opCode_, std::shared_ptr<IExpression> expr_, unsigned int address_, size_t srcLine_, size_t srcCol_) :
+		expr{expr_},
+		srcLine{srcLine_},
+		srcCol{srcCol_},
+		address{address_},
+		opCode{opCode_}
 	{}
 
-	unsigned int getStartAddress() const { return _startAddress; }
-	unsigned int getLengthBytes() const { return _bytes.size(); }
-	unsigned char getByteAt(unsigned int idx) const { return _bytes.at(idx); }
-private:
-	unsigned int _startAddress;
-	std::vector<unsigned char> _bytes;
+	std::shared_ptr<IExpression> expr;
+	size_t srcLine;
+	size_t srcCol;
+	unsigned int address;
+	unsigned char opCode; 
 };
-
-class MemBlocks
-{
-public:
-	MemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload)
-	{
-		_memBlocks = getMemBlocks(codeLines, payload);
-	}
-
-	unsigned int getNumMemBlocks() const { return _memBlocks.size(); }
-
-	MemBlock getMemBlockAt(unsigned int idx) const
-	{
-		return _memBlocks.at(idx);
-	}
-
-private:
-
-	std::vector<MemBlock> getMemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload)
-	{
-		std::vector<MemBlock> memBlocks;
-		std::vector<unsigned char> currMemBlockBytes;
-		unsigned int currMemBlockAddress = 0;
-		CodeLine const *pPrevCodeLine = nullptr;
-
-		for (auto &codeLine : codeLines)
-		{
-			if (!areAdjacent(pPrevCodeLine, &codeLine))
-			{
-				if (currMemBlockBytes.size() > 0)
-				{
-					memBlocks.push_back(MemBlock(currMemBlockAddress, currMemBlockBytes));
-					currMemBlockBytes.clear();
-				}
-
-				currMemBlockAddress = codeLine.getStartAddress();
-			}
-
-			for (unsigned int idx = 0; idx < codeLine.getLengthBytes(); idx++)
-			{
-				currMemBlockBytes.push_back(payload.at(codeLine.getStartAddress() + idx));
-			}
-
-			pPrevCodeLine = &codeLine;
-		}
-
-		if (currMemBlockBytes.size() > 0)
-		{
-			memBlocks.push_back(MemBlock(currMemBlockAddress, currMemBlockBytes));
-			currMemBlockBytes.clear();
-		}
-
-		return memBlocks;
-	}
-
-	bool areAdjacent(asm6502::CodeLine const *prevCodeLine, asm6502::CodeLine const *currCodeLine) const
-	{
-		return (prevCodeLine != nullptr) && (prevCodeLine->getStartAddress() + prevCodeLine->getLengthBytes() == currCodeLine->getStartAddress());
-	}
-
-	std::vector<MemBlock> _memBlocks;
-};
-
-
 
 class MOS6502Listener : public MOS6502BaseListener
 {
 public:
-	MOS6502Listener();
+	MOS6502Listener(char const *pFileName);
 	virtual ~MOS6502Listener();
 
 	void exitOrg_directive(MOS6502Parser::Org_directiveContext * /*ctx*/) override;
@@ -240,6 +92,9 @@ public:
 	void exitLine(MOS6502Parser::LineContext * /*ctx*/) override;
 
 	void resolveBranchTargets();
+	void resolveDeferredExpressions();
+	bool detectedSemanticErrors() const { return semanticErrors.size() > 0; }
+	void outputSemanticErrors();
 	void outputPayload();
 
 private:
@@ -248,22 +103,38 @@ private:
 	unsigned int convertHex(std::string const &hex) const;
 	unsigned int convertBin(std::string const &bin) const;
 
-	unsigned int popExpression();
-	std::vector<unsigned int> popAllExpressions();
+	TOptExprValue popExpression();
+	TOptExprValue peekExpression();
+	std::shared_ptr<IExpression> popNonEvalExpression();
 
-	void appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, unsigned int operand);
+	std::vector<TOptExprValue> popAllExpressions();
+
+	void appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, antlr4::ParserRuleContext const *ctx);
 
 	void appendByteToPayload(unsigned char byte);
+	void appendByteToPayload(std::optional<unsigned char> optByte);
 	void addWordToPayload(unsigned short word);
+	void addWordToPayload(std::optional<unsigned short> optWord);
 	void addDByteToPayload(unsigned short dbyte);
+	void addDByteToPayload(std::optional<unsigned short> optDbyte);
 
+	void addMissingSymbolError(std::string const &symName, antlr4::ParserRuleContext const *ctx);
+	void addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx);
+	void addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx);
+
+	size_t line(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getLine(); }
+	size_t col(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getCharPositionInLine(); }
+
+	std::string fileName;
 	unsigned int currentAddress;
 	int addressOfLine;
 	std::vector<std::pair<unsigned int, std::shared_ptr<IExpression const>>> branchTargets; // branch tgt addresses to labels
-	std::unique_ptr<ISymbolTable> symbolTable;
-	std::vector<std::shared_ptr<IExpression>> expressionStack;
+	std::vector<DeferredExpressionEval> deferredExpressionStatements;
+	SymbolTable symbolTable;
+	std::vector<std::shared_ptr<IExpression>> expressionStack; // expression stack for one code line, reset after each code line
 	std::map<unsigned int, unsigned char> payload;
 	std::vector<CodeLine> codeLines;
+	std::vector<std::unique_ptr<asm6502::SemanticError>> semanticErrors;
 };
 
 } /* namespace asm6502 */

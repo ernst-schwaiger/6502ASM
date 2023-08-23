@@ -46,6 +46,8 @@ message(STATUS "OUTFILES=${ANTLR_MOS6502Parser_CXX_OUTPUTS}")
 add_executable(ASM6502
     src/main.cpp 
     src/listener/MOS6502Listener.cpp
+    src/listener/CodeLine.cpp
+    src/listener/MemBlocks.cpp
     ${ANTLR_MOS6502Parser_CXX_OUTPUTS}
     )    
 
@@ -57,6 +59,8 @@ target_link_libraries(ASM6502 PRIVATE antlr4_static)
 add_executable(MOS6502ListenerTest 
     test/MOS6502ListenerTest.cpp 
     src/listener/MOS6502Listener.cpp
+    src/listener/CodeLine.cpp
+    src/listener/MemBlocks.cpp
     ${ANTLR_MOS6502Parser_CXX_OUTPUTS}
     )
 target_include_directories(MOS6502ListenerTest PRIVATE ${CMAKE_SOURCE_DIR}/test/catch2)

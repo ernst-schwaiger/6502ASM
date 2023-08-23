@@ -6,11 +6,15 @@
  */
 
 #include "MOS6502Listener.h"
+#include "MemBlocks.h"
+
 #include <iostream>
 #include <string>
 #include <iterator>
 #include <sstream>
 #include <stdexcept>
+#include <functional>
+#include <memory>
 
 using namespace std;
 
@@ -63,7 +67,7 @@ static map<string, unsigned char> idx_y_zpg_opcodes
 
 static map<string, unsigned char> abs_opcodes
 {
-	{"ORA", 0x0D}, {"ASL", 0x0E}, {"JSR", 0x20}, {"BIT", 0x2C}, {"AND", 0x2D}, {"ROL", 0x2E}, {"JMP", 0x4C}, {"JMP", 0x4C},
+	{"ORA", 0x0D}, {"ASL", 0x0E}, {"JSR", 0x20}, {"BIT", 0x2C}, {"AND", 0x2D}, {"ROL", 0x2E}, {"JMP", 0x4C},
 	{"EOR", 0x4D}, {"LSR", 0x4E}, {"ADC", 0x6D}, {"ROR", 0x6E}, {"STY", 0x8C}, {"STA", 0x8D}, {"STX", 0x8E}, {"LDY", 0xAC},
 	{"LDA", 0xAD}, {"LDX", 0xAE}, {"CPY", 0xCC}, {"CMP", 0xCD}, {"DEC", 0xCE}, {"CPX", 0xEC}, {"SBC", 0xED}, {"INC", 0xEE}
 };
@@ -108,79 +112,73 @@ pair<unsigned char, unsigned char> findIdxZpgOpCodes(map<string, unsigned char> 
 }
 
 
-function<unsigned int(unsigned int, unsigned int)> add = [](unsigned int arg1, unsigned int arg2)
+function<TOptExprValue(TOptExprValue, TOptExprValue)> add = [](TOptExprValue arg1, TOptExprValue arg2)
 {
-	return arg1 + arg2;
-};
+	TOptExprValue ret = std::nullopt;
 
-function<unsigned int(unsigned int, unsigned int)> sub = [](unsigned int arg1, unsigned int arg2)
-{
-	return arg1 - arg2;
-};
-
-function<unsigned int(unsigned int, unsigned int)> div = [](unsigned int arg1, unsigned int arg2)
-{
-	return arg1 / arg2;
-};
-
-function<unsigned int(unsigned int, unsigned int)> mul = [](unsigned int arg1, unsigned int arg2)
-{
-	return arg1 * arg2;
-};
-
-class DummySymbolTable : public ISymbolTable
-{
-public:
-	virtual unsigned int resolveSymbol(string const &symbol) const override
+	if ((arg1 != std::nullopt) && (arg2 != std::nullopt))
 	{
-		unsigned int ret = 42;
-		auto pos = symbols.find(symbol);
-
-		if (pos != end(symbols))
-		{
-			ret = pos->second;
-		}
-
-		return ret;
+		ret = TOptExprValue(arg1.value() + arg2.value());
 	}
 
-	virtual void addSymbol(string const &symbol, unsigned int val) override
+	return ret;
+};
+
+function<TOptExprValue(TOptExprValue, TOptExprValue)> sub = [](TOptExprValue arg1, TOptExprValue arg2)
+{
+	TOptExprValue ret = std::nullopt;
+
+	if ((arg1 != std::nullopt) && (arg2 != std::nullopt))
 	{
-		auto pos = symbols.find(symbol);
-
-		if (pos == end(symbols))
-		{
-			// FIXME: Check for redefined symbols
-			symbols[symbol] = val;
-		} else
-		{
-			stringstream msg;
-			msg << "Symbol \"" << symbol << "\" already defined as " << (*pos).second << ends;
-
-			string errormsg = msg.str();
-			logic_error e (errormsg);
-
-
-			throw logic_error(e);
-		}
+		ret = TOptExprValue(arg1.value() - arg2.value());
 	}
 
-	virtual ~DummySymbolTable()
+	return ret;
+};
+
+function<TOptExprValue(TOptExprValue, TOptExprValue)> div = [](TOptExprValue arg1, TOptExprValue arg2)
+{
+	TOptExprValue ret = std::nullopt;
+
+	if ((arg1 != std::nullopt) && (arg2 != std::nullopt))
 	{
+		ret = TOptExprValue(arg1.value() / arg2.value());
 	}
 
-private:
+	return ret;
+};
 
-	map<string, unsigned int> symbols;
+function<TOptExprValue(TOptExprValue, TOptExprValue)> mul = [](TOptExprValue arg1, TOptExprValue arg2)
+{
+	TOptExprValue ret = std::nullopt;
+
+	if ((arg1 != std::nullopt) && (arg2 != std::nullopt))
+	{
+		ret = TOptExprValue(arg1.value() * arg2.value());
+	}
+
+	return ret;
+};
+
+function<TOptExprValue(TOptExprValue, TOptExprValue)> mod = [](TOptExprValue arg1, TOptExprValue arg2)
+{
+	TOptExprValue ret = std::nullopt;
+
+	if ((arg1 != std::nullopt) && (arg2 != std::nullopt))
+	{
+		ret = TOptExprValue(arg1.value() % arg2.value());
+	}
+
+	return ret;
 };
 
 class Numeric : public IExpression
 {
 public:
 	Numeric(unsigned int _val) : val{_val}{}
-	virtual unsigned int eval(ISymbolTable const *symbolTable) const override
+	virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
 	{
-		return val;
+		return TOptExprValue(val);
 	}
 
 private:
@@ -191,42 +189,52 @@ class Symbol : public IExpression
 {
 public:
 	Symbol(string const &_symbol) : symbol{_symbol} {}
-	virtual unsigned int eval(ISymbolTable const *symbolTable) const override
+	virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
 	{
-		return symbolTable->resolveSymbol(symbol);
+		TOptExprValue ret = std::nullopt;
+
+		std::optional<Sym> optSym = symbolTable.resolveSymbol(symbol);
+
+		if (optSym != std::nullopt)
+		{
+			ret = TOptExprValue(optSym.value().val);
+		}
+
+		return ret;
 	}
 
 private:
 
-	string const symbol;
+	string symbol;
 };
 
 class BinaryOperation : public IExpression
 {
 public:
-	BinaryOperation(shared_ptr<IExpression> const _arg1, shared_ptr<IExpression> const _arg2, function<unsigned int(unsigned int, unsigned int)> const *_op) :
+	BinaryOperation(shared_ptr<IExpression> const _arg1, shared_ptr<IExpression> const _arg2, function<TOptExprValue(TOptExprValue, TOptExprValue)> const *_op) :
 		arg1{_arg1},
 		arg2{_arg2},
 		op{_op}
 		{};
 
-		virtual unsigned int eval(ISymbolTable const *symbolTable) const override
-		{
-			return (*op)(arg1->eval(symbolTable), arg2->eval(symbolTable));
-		}
+	virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
+	{
+		return (*op)(arg1->eval(symbolTable), arg2->eval(symbolTable));
+	}
 
 private:
-		shared_ptr<IExpression> const arg1;
-		shared_ptr<IExpression> const arg2;
-		function<unsigned int(unsigned int, unsigned int)> const *op;
+	shared_ptr<IExpression> const arg1;
+	shared_ptr<IExpression> const arg2;
+	function<TOptExprValue(TOptExprValue, TOptExprValue)> const *op;
 };
 
 
-MOS6502Listener::MOS6502Listener()  :
+MOS6502Listener::MOS6502Listener(char const *pFileName) :
+		fileName{pFileName},
 		currentAddress{0},
 		addressOfLine{-1},
 		branchTargets{},
-		symbolTable{make_unique<DummySymbolTable>()},
+		symbolTable{},
 		expressionStack{},
 		payload{},
 		codeLines{}
@@ -242,45 +250,94 @@ MOS6502Listener::~MOS6502Listener()
 
 void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ctx)
 {
-	currentAddress = popExpression();
-	addressOfLine = currentAddress;
+	TOptExprValue optCurrAddr = popExpression();
+	if (optCurrAddr != std::nullopt)
+	{
+		addressOfLine = optCurrAddr.value();
+		currentAddress = optCurrAddr.value();
+	} 
 }
 
 void MOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext * ctx)
 {
-	for (auto byte : popAllExpressions())
+	for (auto optByte : popAllExpressions())
 	{
-		// FIXME: Add a warning if byte is out of 0..255 bounds
-		appendByteToPayload((unsigned char)byte);
+		if (optByte != std::nullopt)
+		{
+			auto byteVal = optByte.value();
+
+			if (byteVal > 255)
+			{
+				addValueOutOfRangeError(byteVal, 0, 255, ctx);
+			}
+			else
+			{
+				appendByteToPayload(byteVal);
+			}
+		}
 	}
 }
 
 void MOS6502Listener::exitWord_directive(MOS6502Parser::Word_directiveContext *ctx)
 {
-	for (auto word : popAllExpressions())
+	for (auto optWord : popAllExpressions())
 	{
-		// FIXME: Add a warning if byte is out of 0..255 bounds
-		addWordToPayload((unsigned short)word);
+		if (optWord != std::nullopt)
+		{
+			auto wordVal = optWord.value();
+			if (wordVal > 65535)
+			{
+				addValueOutOfRangeError(wordVal, 0, 65535, ctx);
+			}
+			else
+			{
+				addWordToPayload(wordVal);
+			}
+		}
 	}
 }
 
 void MOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext *ctx)
 {
-	for (auto dbyte : popAllExpressions())
+	for (auto optDbyte : popAllExpressions())
 	{
-		// FIXME: Add a warning if byte is out of 0..255 bounds
-		addWordToPayload((unsigned short)dbyte);
+		if (optDbyte != std::nullopt)
+		{
+			auto dByteVal = optDbyte.value();
+			if (dByteVal > 65535)
+			{
+				addValueOutOfRangeError(dByteVal, 0, 65535, ctx);
+			}
+			else
+			{
+				addDByteToPayload(dByteVal);
+			}
+		}
 	}
 }
 
 void MOS6502Listener::exitLabel(MOS6502Parser::LabelContext *ctx)
 {
-	symbolTable->addSymbol(ctx->ID()->getText(), currentAddress);
+	string symName = ctx->ID()->getText();
+
+	std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
+	if (optSym == std::nullopt)
+	{
+		symbolTable.addSymbol(symName, line(ctx), col(ctx), currentAddress);
+	}
+	else
+	{
+		addDuplicateSymbolError(symName, optSym.value(), ctx);
+	}
 }
 
 void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx)
 {
-	symbolTable->addSymbol(ctx->ID()->getText(), popExpression());
+	TOptExprValue optExprVal = popExpression();
+	if (optExprVal != std::nullopt)
+	{
+		symbolTable.addSymbol(ctx->ID()->getText(), line(ctx), col(ctx), optExprVal.value());
+	}
 }
 
 void MOS6502Listener::exitDir_statement(MOS6502Parser::Dir_statementContext *ctx)
@@ -310,59 +367,90 @@ void MOS6502Listener::exitIdx_x_statement(MOS6502Parser::Idx_x_statementContext 
 {
 	auto opcodeStr = ctx->idx_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(idx_x_opcodes, idx_x_zpg_opcodes, opcodeStr);
-	unsigned int operand = popExpression();
-	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
+	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, ctx);
 }
 
 void MOS6502Listener::exitIdx_y_statement(MOS6502Parser::Idx_y_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idy_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(idx_y_opcodes, idx_y_zpg_opcodes, opcodeStr);
-	unsigned int operand = popExpression();
-	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
+	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, ctx);
 }
 
 void MOS6502Listener::exitIdx_abs_statement(MOS6502Parser::Idx_abs_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idabs_opcode()->getText();
 	auto opCodeZpgOpCode = findIdxZpgOpCodes(abs_opcodes, abs_zpg_opcodes, opcodeStr);
-	unsigned int operand = popExpression();
-	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, operand);
+	appendIdxOrZpgCmd(opCodeZpgOpCode.first, opCodeZpgOpCode.second, ctx);
 }
 
 void MOS6502Listener::exitIdx_idr_statement(MOS6502Parser::Idx_idr_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
 	auto opcode = findOpCode(idx_idr_opcodes, opcodeStr);
-	unsigned int operand = popExpression();
+	TOptExprValue operand = popExpression();
 
-	appendByteToPayload(opcode);
-	appendByteToPayload(operand & 0xff);
+	if (operand != std::nullopt)
+	{
+		appendByteToPayload(opcode);
+		appendByteToPayload(operand.value() & 0xff);
+	}
 }
 
 void MOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementContext *ctx)
 {
 	auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
 	auto opcode = findOpCode(idr_idx_opcodes, opcodeStr);
-	unsigned int operand = popExpression();
+	TOptExprValue operand = popExpression();
 
-	appendByteToPayload(opcode);
-	appendByteToPayload(operand & 0xff);
+	if (operand != std::nullopt)
+	{
+		appendByteToPayload(opcode);
+		appendByteToPayload(operand.value() & 0xff);
+	}
 }
 
 
-void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, unsigned int operand)
+void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, antlr4::ParserRuleContext const *ctx)
 {
-	if (operand <= 0xff && opcode_zpg > 0)
+	shared_ptr<IExpression> pExpression = popNonEvalExpression();
+
+	if (pExpression != nullptr)
 	{
-		appendByteToPayload(opcode_zpg);
-		appendByteToPayload(operand & 0xff);
+		TOptExprValue optOperand = pExpression->eval(symbolTable);
+
+		if (optOperand != std::nullopt)
+		{
+			// We could evaluate the expression, write the code immediately
+			unsigned int operand = optOperand.value();
+
+			if (operand <= 0xff && opcode_zpg > 0)
+			{
+				appendByteToPayload(opcode_zpg);
+				appendByteToPayload(operand & 0xff);
+			}
+			else
+			{
+				appendByteToPayload(opcode);
+				appendByteToPayload(operand & 0xff);
+				appendByteToPayload((operand >> 8) & 0xff);
+			}
+		}
+		else
+		{
+			// The expression could not be evaluated, perhaps due to a missing symbol. 
+			// Assume for now, we have a non-Zero page base address for our indexed or absolute statement
+			deferredExpressionStatements.push_back(DeferredExpressionEval(opcode, pExpression, currentAddress, line(ctx), col(ctx)));
+
+			// reserve 3 bytes for that statement, opcode + 2 byte operands
+			appendByteToPayload(0xff);
+			appendByteToPayload(0xff);
+			appendByteToPayload(0xff);
+		}
 	}
 	else
 	{
-		appendByteToPayload(opcode);
-		appendByteToPayload(operand & 0xff);
-		appendByteToPayload((operand >> 8) & 0xff);
+		// FIXME: Something went wrong. We do not have an expression for our command at all!
 	}
 }
 
@@ -370,15 +458,20 @@ void MOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ctx
 {
 	// there is only JMP: 0x6C
 	appendByteToPayload(jmp_indir_opcode);
-	unsigned int operand = popExpression();
-	appendByteToPayload(operand & 0xff);
-	appendByteToPayload((operand >> 8) & 0xff);
+	TOptExprValue optOperand = popExpression();
+
+	if (optOperand != std::nullopt)
+	{
+		unsigned int operand = optOperand.value();
+		appendByteToPayload(operand & 0xff);
+		appendByteToPayload((operand >> 8) & 0xff);
+	}
 }
 
 
 void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 {
-	function<unsigned int(unsigned int, unsigned int)> const *op = nullptr;
+	function<TOptExprValue(TOptExprValue, TOptExprValue)> const *op = nullptr;
 	if (ctx->ADD() != nullptr)
 	{
 		op = &add;
@@ -391,6 +484,9 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 	} else if (ctx->DIV() != nullptr)
 	{
 		op = &div;
+	} else if (ctx->PERCENT() != nullptr)
+	{
+		op = &mod;
 	}
 
 	if (op != nullptr)
@@ -401,15 +497,48 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 		expressionStack.pop_back();
 
 		expressionStack.emplace_back(make_shared<BinaryOperation>(arg1, arg2, op));
-//			cout << "Expression: " << ctx->getText() << " evaluates to "
-//				<< expressionStack.back().get()->eval(symbolTable.get()) << endl;
+	}
+	else
+	{
+		if (ctx->symbol() != nullptr)
+		{
+			string symName = ctx->symbol()->getText();
+			optional<Sym> optSymbolVal = symbolTable.resolveSymbol(symName);
+
+			if (optSymbolVal == std::nullopt)
+			{
+				// FIXME: Check what is going on here
+				// if the symbol cannot be evaluated for now, add it as an unresolved symbol
+				expressionStack.emplace_back(make_shared<Symbol>(symName));				
+			}
+			else
+			{
+				unsigned int resolvedSymVal = optSymbolVal.value().val;
+				expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal));				
+			}
+		}
 	}
 }
 
 void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 {
-	unsigned int symbolVal = symbolTable.get()->resolveSymbol(ctx->ID()->getText());
-	expressionStack.emplace_back(make_shared<Numeric>(symbolVal));
+	unsigned int resolvedSymVal = 0xffffffff; // this is what is put into our expression if the symbol could not be resolved
+	string symName = ctx->ID()->getText();
+	optional<Sym> optSymbolVal = symbolTable.resolveSymbol(symName);
+
+	if (optSymbolVal == std::nullopt)
+	{
+		// FIXME: Check what is going on here
+		// if the symbol cannot be evaluated for now, add it as an unresolved symbol
+		expressionStack.emplace_back(make_shared<Symbol>(symName));
+	}
+	else
+	{
+		resolvedSymVal = optSymbolVal.value().val;
+		expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal));
+	}
+
+	
 }
 
 void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
@@ -525,16 +654,35 @@ void MOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
 
 void MOS6502Listener::resolveBranchTargets()
 {
-	for (auto foo : branchTargets)
+	for (auto bt : branchTargets)
 	{
-		unsigned int branchOperandAddress = foo.first;
-		unsigned int destAddress = foo.second->eval(symbolTable.get());
+		unsigned int branchOperandAddress = bt.first;
+		TOptExprValue destAddress = bt.second->eval(symbolTable);
 
 		// relative address: destination address minus
 		// address after branch statement (i.e. after operand address)
-		int offset = destAddress - (branchOperandAddress + 1);
+		int offset = (destAddress != std::nullopt) ? (destAddress.value() - (branchOperandAddress + 1)) : 0xff;
 
 		payload[branchOperandAddress] = (offset & 0xff);
+	}
+}
+
+void MOS6502Listener::resolveDeferredExpressions()
+{
+	for (auto const &defExprStmnt : deferredExpressionStatements)
+	{
+		TOptExprValue eval = defExprStmnt.expr->eval(this->symbolTable);
+		if (eval != std::nullopt)
+		{
+			unsigned int operand = eval.value();
+			payload[defExprStmnt.address] = defExprStmnt.opCode;
+			payload[defExprStmnt.address + 1] = static_cast<unsigned char>(operand & 0xff);
+			payload[defExprStmnt.address + 2] = static_cast<unsigned char>((operand >> 8) & 0xff);
+		}
+		else
+		{
+			// FIXME: error handling
+		}
 	}
 }
 
@@ -548,72 +696,57 @@ void MOS6502Listener::outputPayload()
 	}
 
 	MemBlocks memBlocks(codeLines, payload);
+	cout << memBlocks.getBasicMemBlockInitializerListing();
+}
 
-	cout << std::endl << "--- BASIC ---" << std::endl << std::endl;
-
-	cout << "100 read nb" << std::endl;
-	cout << "110 for bi = 1 to nb" << std::endl;
-	cout << "120 read addr" << std::endl;
-	cout << "130 read nby" << std::endl;
-	cout << "140 for byi = 1 to nby" << std::endl;
-	cout << "150 read byvl" << std::endl;
-	cout << "160 poke addr+byi-1, byvl" << std::endl;
-	cout << "170 next byi" << std::endl;
-	cout << "180 next bi" << std::endl;
-	cout << "190 end" << std::endl;
-
-	unsigned int lineNr = 200;
-	cout << lineNr << " rem number of mem blocks" << std::endl;
-	lineNr += 10;
-	cout << lineNr << " data " << memBlocks.getNumMemBlocks() << std::endl;
-	lineNr += 10;
-
-	for (unsigned int memBlockIdx = 0; memBlockIdx < memBlocks.getNumMemBlocks(); memBlockIdx++)
+void MOS6502Listener::outputSemanticErrors()
+{
+	for (auto const & se : semanticErrors)
 	{
-		MemBlock const &memBlock = memBlocks.getMemBlockAt(memBlockIdx);
-		cout << lineNr << " rem block start number bytes" << std::endl;
-		lineNr += 10;
-		cout << lineNr << " data " << memBlock.getStartAddress() << ", " << memBlock.getLengthBytes();
-		lineNr += 10;
-
-		for (unsigned int byteIdx = 0; byteIdx < memBlock.getLengthBytes(); byteIdx++)
-		{
-			if (byteIdx % 4 == 0)
-			{
-				cout << std::endl << lineNr << " data ";
-				lineNr += 10;
-			}
-
-			cout << std::setw(3) << static_cast<unsigned int>(memBlock.getByteAt(byteIdx));
-
-			if ((byteIdx % 4 != 3) && (byteIdx + 1 < memBlock.getLengthBytes()))
-			{
-				cout << ",";
-			}
-		}
-
-		cout << std::endl;
-
-		//strm << "0x" << std::hex << std::setw(4) << std::setfill('0') << startAddress << ":";
-		
+		cerr << se->getErrorMessage();
 	}
 }
 
-unsigned int MOS6502Listener::popExpression()
+TOptExprValue MOS6502Listener::popExpression()
 {
-	unsigned int ret = expressionStack.back()->eval(symbolTable.get());
-	expressionStack.pop_back();
+	TOptExprValue ret = std::nullopt;
+	if (expressionStack.size() > 0)
+	{
+		ret = expressionStack.back()->eval(symbolTable);
+		expressionStack.pop_back();
+	}
 	return ret;
 }
 
-vector<unsigned int> MOS6502Listener::popAllExpressions()
+shared_ptr<IExpression> MOS6502Listener::popNonEvalExpression()
 {
-	vector<unsigned int> ret;
+	shared_ptr<IExpression> ret = nullptr;
+	if (expressionStack.size() > 0)
+	{
+		ret = expressionStack.back();
+		expressionStack.pop_back();
+	}
+	return ret;
+}
 
-	// FIXME: Find a way to do that with lambdas
+TOptExprValue MOS6502Listener::peekExpression()
+{
+	TOptExprValue ret = std::nullopt;
+	if (expressionStack.size() > 0)
+	{
+		ret = expressionStack.back()->eval(symbolTable);
+	}
+	return ret;
+}
+
+
+vector<TOptExprValue> MOS6502Listener::popAllExpressions()
+{
+	vector<TOptExprValue> ret;
+
 	for (auto e : expressionStack)
 	{
-		ret.push_back(e->eval(symbolTable.get()));
+		ret.push_back(e->eval(symbolTable));
 	}
 
 	expressionStack.clear();
@@ -631,6 +764,14 @@ void MOS6502Listener::appendByteToPayload(unsigned char byte)
 	payload[currentAddress++] = byte;
 }
 
+void MOS6502Listener::appendByteToPayload(optional<unsigned char> optByte)
+{
+	if (optByte != std::nullopt)
+	{
+		appendByteToPayload(optByte.value());
+	}
+}
+
 
 void MOS6502Listener::addWordToPayload(unsigned short word)
 {
@@ -642,6 +783,14 @@ void MOS6502Listener::addWordToPayload(unsigned short word)
 	appendByteToPayload(msb);
 }
 
+void MOS6502Listener::addWordToPayload(optional<unsigned short> optWord)
+{
+	if (optWord != std::nullopt)
+	{
+		addWordToPayload(optWord.value());
+	}
+}
+
 void MOS6502Listener::addDByteToPayload(unsigned short dbyte)
 {
 	unsigned char lsb = dbyte & 0xff;
@@ -651,6 +800,39 @@ void MOS6502Listener::addDByteToPayload(unsigned short dbyte)
 	appendByteToPayload(msb);
 	appendByteToPayload(lsb);
 }
+
+void MOS6502Listener::addDByteToPayload(optional<unsigned short> optDbyte)
+{
+	if (optDbyte != std::nullopt)
+	{
+		addDByteToPayload(optDbyte.value());
+	}
+}
+
+void MOS6502Listener::addMissingSymbolError(std::string const &symName, antlr4::ParserRuleContext const *ctx)
+{
+	std::stringstream strm;
+	strm << "Symbol or expression \"" << symName << "\" could not be resolved.";
+	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+}
+
+void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx)
+{
+	std::stringstream strm;
+	strm << "Redefinition of Symbol \"" << symName << "\" detected. " << std::endl
+	     << "See previous definition at " << fileName << ":" << duplicate.line << ":" << duplicate.col << std::endl;
+
+	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+}
+
+void MOS6502Listener::addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx)
+{
+	std::stringstream strm;
+	strm << "Value \"" << value << "\" is out of its supported value range: [" << min << "," << max << "]."<< std::endl;
+	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+}
+
+
 
 
 } /* namespace asm6502 */

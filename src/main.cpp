@@ -15,6 +15,8 @@
 #include "MOS6502Lexer.h"
 #include "MOS6502Parser.h"
 #include "listener/MOS6502Listener.h"
+#include "listener/MOS6502ErrorListener.h"
+
 
 using namespace std;
 using namespace antlr4;
@@ -23,19 +25,37 @@ static int const RET_OK = 0;
 static int const RET_ERR = -1;
 
 
-void parseStreamOutputPayload(std::ifstream &stream)
+int parseStreamOutputPayload(std::ifstream &stream, char const *fileName)
 {
 	ANTLRInputStream input(stream);
 	MOS6502Lexer lexer(&input);
 	CommonTokenStream tokens(&lexer);
 	MOS6502Parser parser(&tokens);
-	asm6502::MOS6502Listener listener;
+	asm6502::MOS6502Listener listener(fileName);
 
 	parser.addParseListener(&listener);
 
+	parser.removeErrorListeners();
+	asm6502::MOS6502ErrorListener errorListener(fileName);
+	parser.addErrorListener(&errorListener);
+
 	parser.r();
+	listener.resolveDeferredExpressions();
 	listener.resolveBranchTargets();
-	listener.outputPayload();
+
+	bool semanticErrs = listener.detectedSemanticErrors();
+
+	if (semanticErrs)
+	{
+		listener.outputSemanticErrors();
+	}
+	else
+	{
+		listener.outputPayload();
+	}
+
+	return semanticErrs ? RET_ERR : RET_OK;
+
 }
 
 int main(int argc, char *argv[])
@@ -51,9 +71,14 @@ int main(int argc, char *argv[])
 		{
 			try
 			{
-				parseStreamOutputPayload(stream);
+				ret = parseStreamOutputPayload(stream, argv[1]);
 			}
 			catch (logic_error const &e)
+			{
+				cerr << "Error: " << e.what();
+				ret = RET_ERR;
+			}
+			catch (RecognitionException &e)
 			{
 				cerr << "Error: " << e.what();
 				ret = RET_ERR;
