@@ -71,7 +71,5 @@ target_include_directories(MOS6502ListenerTest PRIVATE
     ${CMAKE_SOURCE_DIR}/test/catch2
     ${CMAKE_SOURCE_DIR}/src)
 
-target_compile_options(MOS6502ListenerTest PRIVATE -ggdb3)
-
 target_link_libraries(MOS6502ListenerTest PRIVATE antlr4_static)
 add_test(NAME MOS6502ListenerTest COMMAND MOS6502ListenerTest)
