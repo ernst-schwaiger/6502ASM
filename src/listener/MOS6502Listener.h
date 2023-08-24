@@ -20,6 +20,7 @@
 #include "SymbolTable.h"
 #include "CodeLine.h"
 #include "SemanticError.h"
+#include "MemBlocks.h"
 
 namespace asm6502
 {
@@ -93,9 +94,14 @@ public:
 
 	void resolveBranchTargets();
 	void resolveDeferredExpressions();
-	bool detectedSemanticErrors() const { return semanticErrors.size() > 0; }
-	void outputSemanticErrors();
+	bool detectedErrors() const { return ((semanticErrors.size() + parseErrors.size()) > 0); }
 	void outputPayload();
+
+	MemBlocks getAssembledMemBlocks() const;
+	std::vector<asm6502::SemanticError> getSemanticErrors() const { return semanticErrors; }
+	std::vector<std::string> getParseErrors() const { return parseErrors; }
+
+	void addParseError(std::string const &errorMsg) {parseErrors.push_back(errorMsg); }
 
 private:
 
@@ -134,7 +140,8 @@ private:
 	std::vector<std::shared_ptr<IExpression>> expressionStack; // expression stack for one code line, reset after each code line
 	std::map<unsigned int, unsigned char> payload;
 	std::vector<CodeLine> codeLines;
-	std::vector<std::unique_ptr<asm6502::SemanticError>> semanticErrors;
+	std::vector<asm6502::SemanticError> semanticErrors;
+	std::vector<std::string> parseErrors;
 };
 
 } /* namespace asm6502 */

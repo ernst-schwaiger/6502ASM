@@ -44,7 +44,8 @@ message(STATUS "OUTFILES=${ANTLR_MOS6502Parser_CXX_OUTPUTS}")
 # 6502 Assembler binary
 #
 add_executable(ASM6502
-    src/main.cpp 
+    src/main.cpp
+    src/ASM6502.cpp
     src/listener/MOS6502Listener.cpp
     src/listener/CodeLine.cpp
     src/listener/MemBlocks.cpp
@@ -57,12 +58,20 @@ target_link_libraries(ASM6502 PRIVATE antlr4_static)
 # Tests
 #
 add_executable(MOS6502ListenerTest 
-    test/MOS6502ListenerTest.cpp 
+    test/MOS6502ListenerTest.cpp
+    test/MOS6502TestHelper.cpp
     src/listener/MOS6502Listener.cpp
     src/listener/CodeLine.cpp
     src/listener/MemBlocks.cpp
     ${ANTLR_MOS6502Parser_CXX_OUTPUTS}
     )
-target_include_directories(MOS6502ListenerTest PRIVATE ${CMAKE_SOURCE_DIR}/test/catch2)
+
+# we include only the src folder to force #including our MOS6502Listener.h, not the generated one
+target_include_directories(MOS6502ListenerTest PRIVATE 
+    ${CMAKE_SOURCE_DIR}/test/catch2
+    ${CMAKE_SOURCE_DIR}/src)
+
+target_compile_options(MOS6502ListenerTest PRIVATE -ggdb3)
+
 target_link_libraries(MOS6502ListenerTest PRIVATE antlr4_static)
-add_test(NAME MOS6502Listener_test COMMAND MOS6502Listener_test)
+add_test(NAME MOS6502ListenerTest COMMAND MOS6502ListenerTest)

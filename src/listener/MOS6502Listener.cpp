@@ -6,7 +6,6 @@
  */
 
 #include "MOS6502Listener.h"
-#include "MemBlocks.h"
 
 #include <iostream>
 #include <string>
@@ -577,7 +576,7 @@ void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
 	// w/o leading % sign
 	int val = convertBin(ctx->getText().substr(1));
 	expressionStack.emplace_back(make_shared<Numeric>(val));
-	cout << "BinVal: " << val << endl;
+	//cout << "BinVal: " << val << endl;
 }
 
 void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
@@ -649,6 +648,10 @@ void MOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
 
 	CodeLine codeLine(ctx, startAddress, numberOfBytes);
 	codeLines.push_back(codeLine);
+
+	// the expressions parsed in this codeline are not used any more
+	// clean up the list for the next code line
+	expressionStack.clear();
 	addressOfLine = -1;
 }
 
@@ -686,6 +689,11 @@ void MOS6502Listener::resolveDeferredExpressions()
 	}
 }
 
+MemBlocks MOS6502Listener::getAssembledMemBlocks() const
+{
+	return MemBlocks(codeLines, payload);
+}
+
 void MOS6502Listener::outputPayload()
 {
 	cout << "--- MACHINE CODE ---" << std::endl;
@@ -697,14 +705,6 @@ void MOS6502Listener::outputPayload()
 
 	MemBlocks memBlocks(codeLines, payload);
 	cout << memBlocks.getBasicMemBlockInitializerListing();
-}
-
-void MOS6502Listener::outputSemanticErrors()
-{
-	for (auto const & se : semanticErrors)
-	{
-		cerr << se->getErrorMessage();
-	}
 }
 
 TOptExprValue MOS6502Listener::popExpression()
@@ -813,7 +813,7 @@ void MOS6502Listener::addMissingSymbolError(std::string const &symName, antlr4::
 {
 	std::stringstream strm;
 	strm << "Symbol or expression \"" << symName << "\" could not be resolved.";
-	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+	semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
 void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx)
@@ -822,14 +822,14 @@ void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym co
 	strm << "Redefinition of Symbol \"" << symName << "\" detected. " << std::endl
 	     << "See previous definition at " << fileName << ":" << duplicate.line << ":" << duplicate.col << std::endl;
 
-	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+	semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
 void MOS6502Listener::addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx)
 {
 	std::stringstream strm;
 	strm << "Value \"" << value << "\" is out of its supported value range: [" << min << "," << max << "]."<< std::endl;
-	semanticErrors.push_back(make_unique<SemanticError>(SemanticError{strm.str(), fileName, line(ctx), col(ctx)}));
+	semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
 

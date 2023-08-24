@@ -31,6 +31,10 @@ public:
 	}
 
 private:
+
+	std::string prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) const;
+	std::string getWhitespaceBetweenTokens(antlr4::tree::ParseTree *terminalNode, antlr4::tree::ParseTree *prevTerminalNode) const;
+
 	MOS6502Parser::LineContext *ctx;
 	unsigned int const startAddress;
 	unsigned int const lengthBytes;
