@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Temp generated files, anything below build and .antlr
+**/build
+**/.antlr

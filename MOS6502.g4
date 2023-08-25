@@ -39,7 +39,7 @@ idxy_operand        : (dec8 | dec | char8 | bin8 | hex8 | hex16 | expression);
 idx_x               : IDX_X;
 idx_y               : IDX_Y;
 
-idr_statement       : idr_opcode LBRACE idr_operand RBRACE;
+idr_statement       : idr_opcode LBRAKET idr_operand RBRAKET;
 idr_opcode          : 'JMP';
 idr_operand         : (dec8 | dec | char8 | bin8 | hex8 | hex16 | expression);
 
@@ -62,7 +62,7 @@ expression          : expression (DIV | MUL | PERCENT) expression
                     | expression (SUB | ADD) expression
                     | symbol
                     | numerical 
-                    | LBRACE expression RBRACE;
+                    | LPAREN expression RPAREN;
                     
 label               : ID COLON;
 symbol              : ID;
@@ -104,8 +104,8 @@ APO                 : '\'';
 QUOTE               : '"';
 DOLLAR              : '$';
 PERCENT             : '%';
-LBRACE              : '(';
-RBRACE              : ')';
+LPAREN              : '(';
+RPAREN              : ')';
 LBRAKET             : '[';
 RBRAKET             : ']';
 ADD                 : '+';

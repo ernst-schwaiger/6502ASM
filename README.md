@@ -55,4 +55,3 @@ Add semantic checks: Indexed indirect, indirect indexed on non-zero base
 Add warning: zero-page defined after code that references it. zero-page opt cannot be made
 (does non zero page with zero page operand actually work?)
 Issue error if branch/jmp targets or expressions could not be resolved
-Still crash/coredump if using "RET" as last statement instead of "RTS". Check why

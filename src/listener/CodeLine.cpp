@@ -13,7 +13,11 @@ public:
     static std::vector<antlr4::tree::ParseTree *> getTerminalNodes(antlr4::RuleContext *ctx)
     {
         TerminalNodeVisitor visitor;
-        ctx->accept(&visitor);
+        // ctx may be invalid if ANTLR detected a parse error
+        if (ctx != nullptr)
+        {
+            ctx->accept(&visitor);
+        }
         return visitor.terminalNodes;
     }
 private:
