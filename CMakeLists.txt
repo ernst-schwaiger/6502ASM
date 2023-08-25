@@ -1,5 +1,17 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.11)
 project(6502ASM VERSION 0.0.1 LANGUAGES CXX)
+
+#
+# For getting Catch2 sources
+#
+Include(FetchContent)
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.0.1 # or a later release
+)
+
+FetchContent_MakeAvailable(Catch2)
 
 enable_testing()
 
@@ -69,8 +81,8 @@ add_executable(MOS6502ListenerTest
 
 # we include only the src folder to force #including our MOS6502Listener.h, not the generated one
 target_include_directories(MOS6502ListenerTest PRIVATE 
-    ${CMAKE_SOURCE_DIR}/test/catch2
     ${CMAKE_SOURCE_DIR}/src)
 
 target_link_libraries(MOS6502ListenerTest PRIVATE antlr4_static)
+target_link_libraries(MOS6502ListenerTest PRIVATE Catch2::Catch2WithMain)
 add_test(NAME MOS6502ListenerTest COMMAND MOS6502ListenerTest)
