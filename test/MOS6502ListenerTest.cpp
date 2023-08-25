@@ -11,17 +11,9 @@
 #define CATCH_CONFIG_NO_POSIX_SIGNALS
 #include "catch.hpp"
 
-#include <MOS6502Lexer.h>
-
-#include "listener/MOS6502Listener.h"
-#include "listener/MOS6502ErrorListener.h"
-#include "listener/MemBlocks.h"
-#include "listener/SemanticError.h"
-
 #include "MOS6502TestHelper.h"
 
 using namespace antlr4;
-
 
 namespace asm6502
 {

@@ -48,8 +48,6 @@ std::string MemBlocks::getBasicMemBlockInitializerListing() const
 {
     std::stringstream strm;
 
-	strm << std::endl << "--- BASIC ---" << std::endl << std::endl;
-
 	strm << "100 read nb" << std::endl;
 	strm << "110 for bi = 1 to nb" << std::endl;
 	strm << "120 read addr" << std::endl;
@@ -95,4 +93,30 @@ std::string MemBlocks::getBasicMemBlockInitializerListing() const
     }
 
     return strm.str();
+}
+
+unsigned char MemBlocks::getByteAt(unsigned int address) const
+{
+	unsigned char ret = 0xff;
+	for (auto const &mb : memBlocks)
+	{
+		if ((mb.getStartAddress() <= address) && (mb.getStartAddress() + mb.getLengthBytes() > address))
+		{
+			ret = mb.getByteAt(address - mb.getStartAddress());
+			break;
+		}
+	}
+
+	return ret;
+}
+
+std::string MemBlocks::getMachineCode(bool includeAssembly) const
+{
+	std::stringstream strm;
+
+	for (auto const &codeLine : codeLines)
+	{
+		strm << codeLine.get(*this, includeAssembly);
+	}
+	return strm.str();
 }

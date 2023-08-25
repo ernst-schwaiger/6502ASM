@@ -1,3 +1,4 @@
+#include <iostream>
 #include "ASM6502.h"
 
 using namespace std;
@@ -18,6 +19,14 @@ int main(int argc, char *argv[])
 		{
 			cerr << errMsg << std::endl;
 		}
+
+        if (assemblyStatus.errors.empty())
+        {
+            cout << "--- 6502 Machine Code ---" << std::endl;
+            cout << assemblyStatus.assembledProgram.getMachineCode(true) << std::endl;
+            cout << "--- Commodore Basic Initializer Listing ---" << std::endl;
+            cout << assemblyStatus.assembledProgram.getBasicMemBlockInitializerListing();
+        }
     }
     else
     {

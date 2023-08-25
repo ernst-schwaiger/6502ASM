@@ -17,7 +17,7 @@ using namespace antlr4;
 namespace asm6502
 {
 
-static void parseStreamOutputPayload(std::ifstream &stream, char const *fileName, AssemblyStatus &ret)
+void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &ret)
 {
 	ANTLRInputStream input(stream);
 	MOS6502Lexer lexer(&input);
@@ -51,8 +51,6 @@ static void parseStreamOutputPayload(std::ifstream &stream, char const *fileName
 	else
 	{
         ret.assembledProgram = listener.getAssembledMemBlocks();
-        // FIXME: Move that
-		listener.outputPayload();
 	}
 }
 
@@ -67,7 +65,7 @@ AssemblyStatus assembleFile(char const *fileName)
     {
         try
         {
-            parseStreamOutputPayload(stream, fileName, ret);
+            assembleStream(stream, fileName, ret);
         }
         catch (logic_error const &e)
         {

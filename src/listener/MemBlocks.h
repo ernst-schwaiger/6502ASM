@@ -40,10 +40,10 @@ class MemBlocks
 {
 public:
 	MemBlocks() {}
-	MemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload)
-	{
-		memBlocks = getMemBlocks(codeLines, payload);
-	}
+	MemBlocks(std::vector<asm6502::CodeLine> const &codeLines_, std::map<unsigned int, unsigned char> const &payload) :
+		codeLines { codeLines_ },
+		memBlocks { getMemBlocks(codeLines_, payload) }
+	{}
 
 	MemBlocks(std::vector<asm6502::MemBlock> const &memBlocks_) : memBlocks(memBlocks_) {}
 
@@ -64,14 +64,16 @@ public:
 		return memBlocks.at(idx);
 	}
 
+	std::string getMachineCode(bool includeAssembly) const;
     std::string getBasicMemBlockInitializerListing() const;
-
+	unsigned char getByteAt(unsigned int address) const;
 private:
 
 	std::vector<MemBlock> getMemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload);
 	bool areAdjacent(asm6502::CodeLine const *prevCodeLine, asm6502::CodeLine const *currCodeLine) const;
 
 	std::vector<MemBlock> memBlocks;
+	std::vector<asm6502::CodeLine> codeLines;
 };
 
 } // namespace

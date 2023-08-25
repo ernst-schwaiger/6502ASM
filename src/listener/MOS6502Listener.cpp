@@ -694,19 +694,6 @@ MemBlocks MOS6502Listener::getAssembledMemBlocks() const
 	return MemBlocks(codeLines, payload);
 }
 
-void MOS6502Listener::outputPayload()
-{
-	cout << "--- MACHINE CODE ---" << std::endl;
-
-	for (auto codeLine : codeLines)
-	{
-		cout << codeLine.get(payload);
-	}
-
-	MemBlocks memBlocks(codeLines, payload);
-	cout << memBlocks.getBasicMemBlockInitializerListing();
-}
-
 TOptExprValue MOS6502Listener::popExpression()
 {
 	TOptExprValue ret = std::nullopt;

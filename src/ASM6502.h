@@ -2,6 +2,7 @@
 #define ASM6502_H
 
 #include <vector>
+#include <iostream>
 #include "listener/MemBlocks.h"
 
 namespace asm6502
@@ -13,8 +14,10 @@ namespace asm6502
     } AssemblyStatus;
     
 
+    // API for clients passing an assemble file
     AssemblyStatus assembleFile(char const *fileName);
-
+    // API for tests
+    void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &ret);
 }
 
 #endif

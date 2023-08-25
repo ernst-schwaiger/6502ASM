@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include "MemBlocks.h"
 
 using namespace asm6502;
 
@@ -17,19 +18,13 @@ public:
     }
 private:
 
-    TerminalNodeVisitor() {};
+    TerminalNodeVisitor() {}; // shall only be created by the static method
 
     virtual std::any visit(antlr4::tree::ParseTree *tree) { return 0; }
     virtual std::any visitTerminal(antlr4::tree::TerminalNode *node) { return 0; }
     virtual std::any visitErrorNode(antlr4::tree::ErrorNode *node) { return 0; }
 
     virtual std::any visitChildren(antlr4::tree::ParseTree *node)
-    {
-        collectTerminalNodes(node);
-        return 0;
-    }
-
-    void collectTerminalNodes(antlr4::tree::ParseTree *node)
     {
         if (node->children.empty())
         {
@@ -39,51 +34,84 @@ private:
         {
             for (antlr4::tree::ParseTree *child : node->children)
             {
-                collectTerminalNodes(child);
+                visitChildren(child);
             }
         }
+
+        return 0;
     }
 
     std::vector<antlr4::tree::ParseTree *> terminalNodes;
 };
 
-std::string CodeLine::get(std::map<unsigned int, unsigned char> const &payload) const
+std::string CodeLine::get(asm6502::MemBlocks const &mb, bool addAssembly) const
 {
     std::stringstream strm;
-    int column = 0;
 
-    std::string pl = getPayload(payload);
-
+    std::string pl = getMachineCode(mb);
     strm << pl;
-    column += pl.length();
 
-    while (column < 24)
+    if (addAssembly)
     {
-        strm << " ";
-        column++;
+        int column = pl.length();
+        while (column < 24)
+        {
+            strm << " ";
+            column++;
+        }
+
+        strm << label;
+        column += label.length();
+
+        while (column < 36)
+        {
+            strm << " ";
+            column++;
+        }
+
+        strm << assembly;
     }
 
+    strm << std::endl;
+    return strm.str();
+}
+
+
+std::string CodeLine::getMachineCode(MemBlocks const &mb) const
+{
+    std::stringstream strm;
+
+    if (lengthBytes > 0)
+    {
+        strm << "0x" << std::hex << std::setw(4) << std::setfill('0') << startAddress << ":";
+
+        unsigned int lastByteAddr = startAddress + (lengthBytes - 1);
+
+        for (unsigned int addr = startAddress; addr < lastByteAddr; addr++)
+        {
+            strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(mb.getByteAt(addr)) << ",";
+        }
+
+        strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(mb.getByteAt(lastByteAddr));
+        strm << " ";
+    }
+
+    return strm.str();
+}
+
+std::string CodeLine::getLabel(MOS6502Parser::LineContext *ctx)
+{
     MOS6502Parser::LabelContext *labelCtx = ctx->label();
+    return labelCtx != nullptr ? labelCtx->getText() : "";
+}
 
-    if (labelCtx)
-    {
-        strm << labelCtx->getText();
-        column += labelCtx->getText().length();
-    }
-
-    while (column < 36)
-    {
-        strm << " ";
-        column++;
-    }
-
+std::string CodeLine::getAssembly(MOS6502Parser::LineContext *ctx)
+{
     antlr4::RuleContext *dirOrStatementCtx = (ctx->directive() != nullptr) ? 
         static_cast<antlr4::RuleContext *>(ctx->directive()) : 
         static_cast<antlr4::RuleContext *>(ctx->statement());
 
-    strm << prettyPrintDirOrStatement(dirOrStatementCtx) << std::endl;
-
-    return strm.str();
+    return prettyPrintDirOrStatement(dirOrStatementCtx);
 }
 
 std::string CodeLine::prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) const
@@ -114,32 +142,5 @@ std::string CodeLine::getWhitespaceBetweenTokens(antlr4::tree::ParseTree *termin
                    ((terminalNode->getText().size() >= 1) && (terminalNode->getText().substr(0,1) == std::string(",")))
                   );
 
-
-    // bool skipWS = (((prevTerminalNode != nullptr) && (prevTerminalNode->getText() == std::string("."))) ||
-    //             ((terminalNode->getText().size() >= 1) && (terminalNode->getText().substr(0,1) == std::string(","))));
-
     return skipWS ? "" : " ";
-}
-
-
-std::string CodeLine::getPayload(std::map<unsigned int, unsigned char> const &payload) const
-{
-    std::stringstream strm;
-
-    if (lengthBytes > 0)
-    {
-        strm << "0x" << std::hex << std::setw(4) << std::setfill('0') << startAddress << ":";
-
-        unsigned int lastByteAddr = startAddress + (lengthBytes - 1);
-
-        for (unsigned int addr = startAddress; addr < lastByteAddr; addr++)
-        {
-            strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(payload.at(addr)) << ",";
-        }
-
-        strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(payload.at(lastByteAddr));
-        strm << " ";
-    }
-
-    return strm.str();
 }

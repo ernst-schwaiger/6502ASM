@@ -60,6 +60,7 @@ target_link_libraries(ASM6502 PRIVATE antlr4_static)
 add_executable(MOS6502ListenerTest 
     test/MOS6502ListenerTest.cpp
     test/MOS6502TestHelper.cpp
+    src/ASM6502.cpp
     src/listener/MOS6502Listener.cpp
     src/listener/CodeLine.cpp
     src/listener/MemBlocks.cpp

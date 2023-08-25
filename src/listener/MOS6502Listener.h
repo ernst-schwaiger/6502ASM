@@ -95,7 +95,6 @@ public:
 	void resolveBranchTargets();
 	void resolveDeferredExpressions();
 	bool detectedErrors() const { return ((semanticErrors.size() + parseErrors.size()) > 0); }
-	void outputPayload();
 
 	MemBlocks getAssembledMemBlocks() const;
 	std::vector<asm6502::SemanticError> getSemanticErrors() const { return semanticErrors; }

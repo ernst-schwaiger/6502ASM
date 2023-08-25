@@ -1,29 +1,18 @@
 #include "MOS6502TestHelper.h"
+#include <catch.hpp>
+#include <iomanip>
+#include <iostream>
 
 using namespace antlr4;
 
 namespace asm6502
 {
 
-ParseStatus parseStream(std::istream &stream, char const *fileName)
+AssemblyStatus parseStream(std::istream &stream, char const *fileName)
 {
-	ANTLRInputStream input(stream);
-	MOS6502Lexer lexer(&input);
-	CommonTokenStream tokens(&lexer);
-	MOS6502Parser parser(&tokens);
-	asm6502::MOS6502Listener listener(fileName);
-
-	parser.addParseListener(&listener);
-
-	parser.removeErrorListeners();
-	asm6502::MOS6502ErrorListener errorListener(fileName, &listener);
-	parser.addErrorListener(&errorListener);
-
-	parser.r();
-	listener.resolveDeferredExpressions();
-	listener.resolveBranchTargets();
-
-    return ParseStatus{listener.getAssembledMemBlocks(), listener.getSemanticErrors()};
+    AssemblyStatus ret;
+    assembleStream(stream, fileName, ret);
+    return ret;
 }
 
 std::string memBlockAsString(MemBlock const &mb)
@@ -58,21 +47,21 @@ std::string getMemBlocksAsString(MemBlocks const &mbs)
     return strm.str();
 }
 
-// runs the passed prog thr
+// runs the passed prog through assembler
 void testAssembly(std::istream &prog, MemBlocks const &ref)
 {
-    ParseStatus ps = parseStream(prog, "");
+    AssemblyStatus as = parseStream(prog, "");
 
-    if (!ps.semanticErrors.empty())
+    if (!as.errors.empty())
     {
         FAIL("Unexpected semantic errors were reported.");
     }
 
-    if (ps.assembledProgram != ref)
+    if (as.assembledProgram != ref)
     {
         std::stringstream strm;
         strm << "Built binary " << std::endl
-            << getMemBlocksAsString(ps.assembledProgram)
+            << getMemBlocksAsString(as.assembledProgram)
             << "does not equal reference binary" << std::endl
             << getMemBlocksAsString(ref);
 
