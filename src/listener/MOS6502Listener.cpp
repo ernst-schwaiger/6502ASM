@@ -171,23 +171,41 @@ function<TOptExprValue(TOptExprValue, TOptExprValue)> mod = [](TOptExprValue arg
 	return ret;
 };
 
-class Numeric : public IExpression
+class ExpressionBase : public IExpression
 {
 public:
-	Numeric(unsigned int _val) : val{_val}{}
+	ExpressionBase(size_t line_, size_t column_) : line{line_}, column{column_} {}
+	virtual size_t getLine() const override { return line; }
+	virtual size_t getColumn() const override { return column; }
+private:
+	size_t line;
+	size_t column;
+};
+
+class Numeric : public ExpressionBase
+{
+public:
+	Numeric(unsigned int _val, size_t line_, size_t col_) : ExpressionBase {line_, col_}, val{_val} {}
 	virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
 	{
 		return TOptExprValue(val);
+	}
+
+	virtual std::string getText() const override
+	{
+		std::stringstream strm;
+		strm << val;
+		return strm.str();
 	}
 
 private:
 	unsigned int const val;
 };
 
-class Symbol : public IExpression
+class Symbol : public ExpressionBase
 {
 public:
-	Symbol(string const &_symbol) : symbol{_symbol} {}
+	Symbol(string const &_symbol, size_t line_, size_t col_) : ExpressionBase {line_, col_}, symbol{_symbol} {}
 	virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
 	{
 		TOptExprValue ret = std::nullopt;
@@ -202,15 +220,22 @@ public:
 		return ret;
 	}
 
-private:
+	virtual std::string getText() const override {	return symbol; }
 
+private:
 	string symbol;
 };
 
-class BinaryOperation : public IExpression
+class BinaryOperation : public ExpressionBase
 {
 public:
-	BinaryOperation(shared_ptr<IExpression> const _arg1, shared_ptr<IExpression> const _arg2, function<TOptExprValue(TOptExprValue, TOptExprValue)> const *_op) :
+	BinaryOperation(
+		shared_ptr<IExpression> const _arg1, 
+		shared_ptr<IExpression> const _arg2, 
+		function<TOptExprValue(TOptExprValue, TOptExprValue)> const *_op,
+		size_t line_,
+		size_t col_) :
+		ExpressionBase {line_, col_},
 		arg1{_arg1},
 		arg2{_arg2},
 		op{_op}
@@ -220,6 +245,8 @@ public:
 	{
 		return (*op)(arg1->eval(symbolTable), arg2->eval(symbolTable));
 	}
+
+	virtual std::string getText() const override {	return "<<expression>>"; }
 
 private:
 	shared_ptr<IExpression> const arg1;
@@ -318,24 +345,36 @@ void MOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext 
 void MOS6502Listener::exitLabel(MOS6502Parser::LabelContext *ctx)
 {
 	string symName = ctx->ID()->getText();
-
 	std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
-	if (optSym == std::nullopt)
-	{
-		symbolTable.addSymbol(symName, line(ctx), col(ctx), currentAddress);
-	}
-	else
-	{
-		addDuplicateSymbolError(symName, optSym.value(), ctx);
-	}
+	addSymbolCheckAlreadyDefined(symName, currentAddress, ctx);
 }
 
 void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx)
 {
+	string symName = ctx->ID()->getText();
+	std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
 	TOptExprValue optExprVal = popExpression();
 	if (optExprVal != std::nullopt)
 	{
-		symbolTable.addSymbol(ctx->ID()->getText(), line(ctx), col(ctx), optExprVal.value());
+		addSymbolCheckAlreadyDefined(symName, optExprVal.value(), ctx);
+	}
+	else
+	{
+		// FIXME: We could not evaluate the expression, something was missing
+		// issue a semantic error here
+	}
+}
+
+void MOS6502Listener::addSymbolCheckAlreadyDefined(string symName, unsigned int symVal, antlr4::ParserRuleContext *ctx)
+{
+	std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
+	if (optSym == std::nullopt)
+	{
+		symbolTable.addSymbol(symName, line(ctx), col(ctx), symVal);
+	}
+	else
+	{
+		addDuplicateSymbolError(symName, optSym.value(), ctx);
 	}
 }
 
@@ -347,7 +386,20 @@ void MOS6502Listener::exitDir_statement(MOS6502Parser::Dir_statementContext *ctx
 void MOS6502Listener::exitImm_statement(MOS6502Parser::Imm_statementContext *ctx)
 {
 	appendByteToPayload(findOpCode(imm_opcodes, ctx->imm_opcode()->getText()));
-	appendByteToPayload(popExpression());
+
+	// expressions for immediate values shall be deducible immediately
+	// if not, issue an error
+
+	auto immOperand = popExpression();
+
+	if (immOperand != std::nullopt)
+	{
+		appendByteToPayload(immOperand);
+	}
+	else
+	{
+		addMissingSymbolError(ctx->imm_operand()->getText(), ctx);
+	}
 }
 
 void MOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx)
@@ -356,7 +408,7 @@ void MOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx
 
 	// the relative operand can only be resolved at the end of the assembler
 	// run, since labels can be assigned here that have not yet been parsed
-	auto label = make_shared<Symbol>(ctx->symbol()->getText());
+	auto label = make_shared<Symbol>(ctx->symbol()->getText(), line(ctx), col(ctx));
 
 	branchTargets.emplace_back(pair<unsigned int, shared_ptr<IExpression>>{currentAddress, label});
 	++currentAddress;
@@ -455,16 +507,8 @@ void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opco
 
 void MOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ctx)
 {
-	// there is only JMP: 0x6C
-	appendByteToPayload(jmp_indir_opcode);
-	TOptExprValue optOperand = popExpression();
-
-	if (optOperand != std::nullopt)
-	{
-		unsigned int operand = optOperand.value();
-		appendByteToPayload(operand & 0xff);
-		appendByteToPayload((operand >> 8) & 0xff);
-	}
+	// there is only one indirect op, JMP: 0x6C
+	appendIdxOrZpgCmd(jmp_indir_opcode, 0, ctx);
 }
 
 
@@ -495,7 +539,7 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 		auto arg1 = expressionStack.back();
 		expressionStack.pop_back();
 
-		expressionStack.emplace_back(make_shared<BinaryOperation>(arg1, arg2, op));
+		expressionStack.emplace_back(make_shared<BinaryOperation>(arg1, arg2, op, line(ctx), col(ctx)));
 	}
 	else
 	{
@@ -508,12 +552,12 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 			{
 				// FIXME: Check what is going on here
 				// if the symbol cannot be evaluated for now, add it as an unresolved symbol
-				expressionStack.emplace_back(make_shared<Symbol>(symName));				
+				expressionStack.emplace_back(make_shared<Symbol>(symName, line(ctx), col(ctx)));				
 			}
 			else
 			{
 				unsigned int resolvedSymVal = optSymbolVal.value().val;
-				expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal));				
+				expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal, line(ctx), col(ctx)));				
 			}
 		}
 	}
@@ -529,12 +573,12 @@ void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 	{
 		// FIXME: Check what is going on here
 		// if the symbol cannot be evaluated for now, add it as an unresolved symbol
-		expressionStack.emplace_back(make_shared<Symbol>(symName));
+		expressionStack.emplace_back(make_shared<Symbol>(symName, line(ctx), col(ctx)));
 	}
 	else
 	{
 		resolvedSymVal = optSymbolVal.value().val;
-		expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal));
+		expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal, line(ctx), col(ctx)));
 	}
 
 	
@@ -543,7 +587,7 @@ void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 {
 	int val = convertDec(ctx->getText());
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 
 //	cout << "Dec8Val: " << val << endl;
 }
@@ -551,7 +595,7 @@ void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 void MOS6502Listener::exitDec(MOS6502Parser::DecContext * ctx)
 {
 	int val = convertDec(ctx->getText());
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	//cout << "DecVal: " << val << endl;
 }
 
@@ -559,7 +603,7 @@ void MOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
 {
 	// w/o leading $ sign
 	int val = convertHex(ctx->getText().substr(1));
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	//cout << "Hex16Val: " << val << endl;
 }
 
@@ -567,7 +611,7 @@ void MOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
 {
 	// w/o leading $ sign
 	int val = convertHex(ctx->getText().substr(1));
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	//cout << "Hex8Val: " << val << endl;
 }
 
@@ -575,7 +619,7 @@ void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
 {
 	// w/o leading % sign
 	int val = convertBin(ctx->getText().substr(1));
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	//cout << "BinVal: " << val << endl;
 }
 
@@ -583,7 +627,7 @@ void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
 {
 	// w/o leading/trailing apos
 	int val = ctx->getText()[1];
-	expressionStack.emplace_back(make_shared<Numeric>(val));
+	expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	//cout << "CharVal: " << val << endl;
 }
 
@@ -594,7 +638,7 @@ void MOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
 
 	for (auto val : stringNoQuotes)
 	{
-		expressionStack.emplace_back(make_shared<Numeric>(val));
+		expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 	}
 }
 
@@ -662,11 +706,25 @@ void MOS6502Listener::resolveBranchTargets()
 		unsigned int branchOperandAddress = bt.first;
 		TOptExprValue destAddress = bt.second->eval(symbolTable);
 
-		// relative address: destination address minus
-		// address after branch statement (i.e. after operand address)
-		int offset = (destAddress != std::nullopt) ? (destAddress.value() - (branchOperandAddress + 1)) : 0xff;
+		if (destAddress != std::nullopt)
+		{
+			// relative address: destination address minus
+			// address after branch statement (i.e. after operand address)
+			int offset = destAddress.value() - (branchOperandAddress + 1);
 
-		payload[branchOperandAddress] = (offset & 0xff);
+			if (offset >= -128 && offset <= 127)
+			{
+				payload[branchOperandAddress] = (offset & 0xff);
+			}
+			else
+			{
+				addBranchTargetTooFarError(*bt.second, branchOperandAddress + 1, destAddress.value());
+			}
+		}
+		else
+		{
+			addUnresolvedBranchTargetError(*bt.second);
+		}
 	}
 }
 
@@ -684,7 +742,7 @@ void MOS6502Listener::resolveDeferredExpressions()
 		}
 		else
 		{
-			// FIXME: error handling
+			addUnresolvedDeferredSymbolError(defExprStmnt);
 		}
 	}
 }
@@ -803,6 +861,31 @@ void MOS6502Listener::addMissingSymbolError(std::string const &symName, antlr4::
 	semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
+void MOS6502Listener::addUnresolvedDeferredSymbolError(DeferredExpressionEval const &unresolvedExpression)
+{
+	semanticErrors.push_back(
+		SemanticError{"Symbol or expression could not be determined.", fileName, unresolvedExpression.srcLine, unresolvedExpression.srcCol});
+}
+
+void MOS6502Listener::addUnresolvedBranchTargetError(IExpression const &branchTargetExpression)
+{
+	std::stringstream strm;
+	strm << "Symbol or expression \"" << branchTargetExpression.getText() << "\" could not be resolved";
+	semanticErrors.push_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
+}
+
+void MOS6502Listener::addBranchTargetTooFarError(IExpression const &branchTargetExpression, unsigned int branch, unsigned int target)
+{
+	std::stringstream strm;
+	strm 
+		<< "Branch at address 0x" 
+		<< std::hex << std::setfill('0') << branch
+		<< " is too far away from the branch target \"" << branchTargetExpression.getText() << "\" at address 0x"
+		<< std::hex << std::setfill('0') << target << ".";
+	
+	semanticErrors.push_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
+}
+
 void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx)
 {
 	std::stringstream strm;
@@ -818,8 +901,6 @@ void MOS6502Listener::addValueOutOfRangeError(unsigned int value, unsigned int m
 	strm << "Value \"" << value << "\" is out of its supported value range: [" << min << "," << max << "]."<< std::endl;
 	semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
-
-
 
 
 } /* namespace asm6502 */

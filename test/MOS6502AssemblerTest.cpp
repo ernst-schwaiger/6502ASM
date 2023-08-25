@@ -1,5 +1,5 @@
 /*
- * CMOS6502ListenerTest.cpp
+ * MOS6502AssemblerTest.cpp
  *
  *  Created on: 19.08.2018
  *      Author: Ernst

@@ -11,7 +11,7 @@ std::string memBlockAsString(MemBlock const &mb);
 std::string getMemBlocksAsString(MemBlocks const &mbs);
 
 void testAssembly(std::istream &prog, MemBlocks const &ref);
-
+void testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted = {});
 }
 
 #endif

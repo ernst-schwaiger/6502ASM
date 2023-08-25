@@ -30,8 +30,11 @@ typedef std::optional<unsigned int> TOptExprValue;
 class IExpression
 {
 public:
-	virtual ~IExpression() {};
+	virtual ~IExpression(){};
 	virtual TOptExprValue eval(SymbolTable const &symbolTable) const = 0;
+	virtual std::string getText() const = 0;
+	virtual size_t getLine() const = 0;
+	virtual size_t getColumn() const = 0;
 };
 
 // Implements a deferred expression evaluation for commands that use
@@ -123,7 +126,11 @@ private:
 	void addDByteToPayload(unsigned short dbyte);
 	void addDByteToPayload(std::optional<unsigned short> optDbyte);
 
+	void addSymbolCheckAlreadyDefined(std::string symName, unsigned int symVal, antlr4::ParserRuleContext *ctx);
 	void addMissingSymbolError(std::string const &symName, antlr4::ParserRuleContext const *ctx);
+	void addUnresolvedDeferredSymbolError(DeferredExpressionEval const &unresolvedExpression); // for failed deferred expression eval
+	void addUnresolvedBranchTargetError(IExpression const &branchTargetExpression); // for failed branch target resolution
+	void addBranchTargetTooFarError(IExpression const &branchTargetExpression, unsigned int branch, unsigned int target); // if branch and target are too far away, out of byte offset [-128 .. 127]
 	void addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx);
 	void addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx);
 

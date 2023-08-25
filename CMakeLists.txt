@@ -69,8 +69,9 @@ target_link_libraries(ASM6502 PRIVATE antlr4_static)
 #
 # Tests
 #
-add_executable(MOS6502ListenerTest 
-    test/MOS6502ListenerTest.cpp
+add_executable(ASM6502Test 
+    test/MOS6502AssemblerTest.cpp
+    test/MOS6502ErrorTest.cpp
     test/MOS6502TestHelper.cpp
     src/ASM6502.cpp
     src/listener/MOS6502Listener.cpp
@@ -80,9 +81,9 @@ add_executable(MOS6502ListenerTest
     )
 
 # we include only the src folder to force #including our MOS6502Listener.h, not the generated one
-target_include_directories(MOS6502ListenerTest PRIVATE 
+target_include_directories(ASM6502Test PRIVATE 
     ${CMAKE_SOURCE_DIR}/src)
 
-target_link_libraries(MOS6502ListenerTest PRIVATE antlr4_static)
-target_link_libraries(MOS6502ListenerTest PRIVATE Catch2::Catch2WithMain)
-add_test(NAME MOS6502ListenerTest COMMAND MOS6502ListenerTest)
+target_link_libraries(ASM6502Test PRIVATE antlr4_static)
+target_link_libraries(ASM6502Test PRIVATE Catch2::Catch2WithMain)
+add_test(NAME ASM6502Test COMMAND ASM6502Test)
