@@ -47,11 +47,7 @@ make -j
 ```
 
 ## ToDos
-Pull catch2 via CMake, remove from repo
-Add tests for semantic errors and syntax errors
-Fix Bug: Determine if operands are immediate or not. If immediate but the expression
-cannot be evaluated, create two byte operations nevertheless!
-Add semantic checks: Indexed indirect, indirect indexed on non-zero base
-Add warning: zero-page defined after code that references it. zero-page opt cannot be made
+* Add semantic checks: Indexed indirect, indirect indexed on non-zero base
+* Add warning: zero-page defined after code that references it. zero-page opt cannot be made
 (does non zero page with zero page operand actually work?)
-Issue error if branch/jmp targets or expressions could not be resolved
+

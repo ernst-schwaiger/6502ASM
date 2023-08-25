@@ -15,10 +15,10 @@ int main(int argc, char *argv[])
     {
         AssemblyStatus assemblyStatus = assembleFile(argv[1]);
 
-		for (auto const &errMsg : assemblyStatus.errors)
-		{
-			cerr << errMsg << std::endl;
-		}
+        for (auto const &errMsg : assemblyStatus.errors)
+        {
+            cerr << errMsg << std::endl;
+        }
 
         if (assemblyStatus.errors.empty())
         {

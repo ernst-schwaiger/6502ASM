@@ -19,26 +19,26 @@ namespace asm6502
 
 void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &ret)
 {
-	ANTLRInputStream input(stream);
-	MOS6502Lexer lexer(&input);
-	CommonTokenStream tokens(&lexer);
-	MOS6502Parser parser(&tokens);
-	asm6502::MOS6502Listener listener(fileName);
+    ANTLRInputStream input(stream);
+    MOS6502Lexer lexer(&input);
+    CommonTokenStream tokens(&lexer);
+    MOS6502Parser parser(&tokens);
+    asm6502::MOS6502Listener listener(fileName);
 
-	parser.addParseListener(&listener);
+    parser.addParseListener(&listener);
 
-	parser.removeErrorListeners();
-	asm6502::MOS6502ErrorListener errorListener(fileName, &listener);
-	parser.addErrorListener(&errorListener);
+    parser.removeErrorListeners();
+    asm6502::MOS6502ErrorListener errorListener(fileName, &listener);
+    parser.addErrorListener(&errorListener);
 
-	parser.r();
-	listener.resolveDeferredExpressions();
-	listener.resolveBranchTargets();
+    parser.r();
+    listener.resolveDeferredExpressions();
+    listener.resolveBranchTargets();
 
-	bool errorsDetected = listener.detectedErrors();
+    bool errorsDetected = listener.detectedErrors();
 
-	if (errorsDetected)
-	{
+    if (errorsDetected)
+    {
         for (auto const &pe : listener.getParseErrors())
         {
             ret.errors.push_back(pe);
@@ -47,11 +47,11 @@ void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &
         {
             ret.errors.push_back(se.getErrorMessage());
         }
-	}
-	else
-	{
+    }
+    else
+    {
         ret.assembledProgram = listener.getAssembledMemBlocks();
-	}
+    }
 }
 
 AssemblyStatus assembleFile(char const *fileName)
