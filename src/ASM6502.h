@@ -18,6 +18,7 @@ namespace asm6502
     AssemblyStatus assembleFile(char const *fileName);
     // API for tests
     void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &ret);
+    void writeProgFile(char const *pProgFilePath, MemBlocks const &memBlocks);
 }
 
 #endif

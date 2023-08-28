@@ -3,8 +3,8 @@
             ;
             .ORG $C000
             LDY #0
-label2:     STY $D020
+label:      STY $D020
             INY
-            BNE label2
+            BNE label
             RTS
 .END

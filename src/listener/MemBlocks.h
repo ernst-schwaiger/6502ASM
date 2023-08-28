@@ -3,7 +3,8 @@
 
 #include "CodeLine.h"
 #include <vector>
-
+#include <iostream>
+#include <span>
 
 namespace asm6502
 {
@@ -21,6 +22,11 @@ public:
         return ((startAddress == rhs.startAddress) && (bytes == rhs.bytes));
     }
 
+    bool operator < (MemBlock const &rhs) const
+    {
+        return (startAddress < rhs.startAddress);
+    }
+
     bool operator != (MemBlock const &rhs) const
     {
         return !(*this == rhs);
@@ -29,6 +35,9 @@ public:
     unsigned int getStartAddress() const { return startAddress; }
     unsigned int getLengthBytes() const { return bytes.size(); }
     unsigned char getByteAt(unsigned int idx) const { return bytes.at(idx); }
+
+    friend std::ostream & operator << (std::ostream &os, asm6502::MemBlock const &memBlock);
+
 private:
     unsigned int startAddress;
     std::vector<unsigned char> bytes;
@@ -67,6 +76,9 @@ public:
     std::string getMachineCode(bool includeAssembly) const;
     std::string getBasicMemBlockInitializerListing() const;
     unsigned char getByteAt(unsigned int address) const;
+
+    friend std::ostream& operator<<(std::ostream& out, asm6502::MemBlocks const &memBlocks);
+
 private:
 
     std::vector<MemBlock> getMemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload);
@@ -75,6 +87,9 @@ private:
     std::vector<MemBlock> memBlocks;
     std::vector<asm6502::CodeLine> codeLines;
 };
+
+std::ostream & operator << (std::ostream &os, asm6502::MemBlocks const &memBlocks);
+std::ostream & operator << (std::ostream &os, asm6502::MemBlock const &memBlock);
 
 } // namespace
 #endif

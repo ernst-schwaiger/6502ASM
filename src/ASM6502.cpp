@@ -96,5 +96,11 @@ AssemblyStatus assembleFile(char const *fileName)
     return ret;
 }
 
+void writeProgFile(char const *pProgFilePath, MemBlocks const &memBlocks)
+{
+    std::ofstream progFile(pProgFilePath, std::ios::binary | std::ios::out | std::ios::trunc);
+    progFile << memBlocks;
+    progFile.close();
+}
 
 }
