@@ -1,9 +1,5 @@
-            ;
-            ; two unsigned multiply functions, result is two times the size of operands
-            ; to guarantee that no overflows can happen
-            ;
 
-            .ORG $FB ; zero page
+            .ORG $2200
             ;
             ; data segment for uint8 * uint8 -> uint16
             ;
@@ -11,7 +7,6 @@ x8:         .BYTE $20
 y8:         .BYTE $21
 result16:   .WORD $0000
 
-            .ORG $4000
             ;
             ; data segment for uint16 * uint16 -> uint32
             ;
