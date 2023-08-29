@@ -43,12 +43,13 @@ public:
 class DeferredExpressionEval
 {
 public:
-    DeferredExpressionEval(unsigned char opCode_, std::shared_ptr<IExpression> expr_, unsigned int address_, size_t srcLine_, size_t srcCol_) :
+    DeferredExpressionEval(unsigned char opCode_, uint8_t opNrBytes_, std::shared_ptr<IExpression> expr_, unsigned int address_, size_t srcLine_, size_t srcCol_) :
         expr{expr_},
         srcLine{srcLine_},
         srcCol{srcCol_},
         address{address_},
-        opCode{opCode_}
+        opCode{opCode_},
+        opNrBytes{opNrBytes_}
     {}
 
     std::shared_ptr<IExpression> expr;
@@ -56,6 +57,7 @@ public:
     size_t srcCol;
     unsigned int address;
     unsigned char opCode; 
+    unsigned char opNrBytes;
 };
 
 class MOS6502Listener : public MOS6502BaseListener
@@ -118,6 +120,7 @@ private:
     std::vector<TOptExprValue> popAllExpressions();
 
     void appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, antlr4::ParserRuleContext const *ctx);
+    void appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4::ParserRuleContext const *ctx);
 
     void appendByteToPayload(unsigned char byte);
     void appendByteToPayload(std::optional<unsigned char> optByte);
@@ -127,15 +130,19 @@ private:
     void addDByteToPayload(std::optional<unsigned short> optDbyte);
 
     void addSymbolCheckAlreadyDefined(std::string symName, unsigned int symVal, antlr4::ParserRuleContext *ctx);
-    void addMissingSymbolError(std::string const &symName, antlr4::ParserRuleContext const *ctx);
-    void addUnresolvedDeferredSymbolError(DeferredExpressionEval const &unresolvedExpression); // for failed deferred expression eval
+    void addMissingSymbolError(std::string const &symName, size_t line, size_t col);
     void addUnresolvedBranchTargetError(IExpression const &branchTargetExpression); // for failed branch target resolution
     void addBranchTargetTooFarError(IExpression const &branchTargetExpression, unsigned int branch, unsigned int target); // if branch and target are too far away, out of byte offset [-128 .. 127]
     void addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx);
     void addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx);
+    void addOperandTooLargeError(unsigned int operand, size_t line, size_t col);
+    void addInternalError(size_t line, size_t col);
 
     size_t line(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getLine(); }
     size_t col(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getCharPositionInLine(); }
+
+    void makeDeferredExpression(unsigned char opcode, uint8_t opNrBytes, std::shared_ptr<IExpression> pExpression, unsigned int currentAddress, size_t line, size_t col );
+
 
     std::string fileName;
     unsigned int currentAddress;

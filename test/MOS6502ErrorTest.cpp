@@ -104,4 +104,36 @@ TEST_CASE( "branch target too far away", "6502 Assembler" )
     testErrors(prog, {3});
 }
 
+TEST_CASE( "operands too large", "6502 Assembler" )
+{
+
+    std::stringstream prog;
+    prog
+        << "            MY_OPERAND = $100 " << std::endl
+        << "            .ORG $1000 " << std::endl
+        << "            LDA #MY_OPERAND " << std::endl
+        << "            LDA [MY_OPERAND],Y " << std::endl
+        << "            LDA [MY_OPERAND,X] " << std::endl
+        << "            RTS " << std::endl
+    ;
+
+    testErrors(prog, {3, 4, 5});
+}
+
+TEST_CASE( "resolved operands too large", "6502 Assembler" )
+{
+
+    std::stringstream prog;
+    prog
+        << "            .ORG $1000 " << std::endl
+        << "            LDA #MY_OPERAND " << std::endl
+        << "            LDA [MY_OPERAND],Y " << std::endl
+        << "            LDA [MY_OPERAND,X] " << std::endl
+        << "            RTS " << std::endl
+        << "            MY_OPERAND = $100 " << std::endl
+    ;
+
+    testErrors(prog, {2, 3, 4});
+}
+
 }

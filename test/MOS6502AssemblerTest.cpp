@@ -104,6 +104,71 @@ TEST_CASE( "resolve mem addresses", "6502 Assembler" )
         );
 }
 
+TEST_CASE( "resolve immediate values", "6502 Assembler" )
+{
+    // the lo/hi bytes of the address "irqhnd" can be read as immediate
+    std::stringstream prog;
+    prog 
+        << "            IRQ_HND_VECTOR_LO = $0314 "
+        << "            IRQ_HND_VECTOR_HI = $0315 "
+        << "            FRAME_COLOR       = $D020 "
+        << " "
+        << "            .ORG $2000 "
+        << "            LDA IRQ_HND_VECTOR_LO "
+        << "            STA oldhnd "
+        << "            LDA IRQ_HND_VECTOR_HI "
+        << "            STA (oldhnd + 1) "
+        << "            SEI "
+        << "            LDA #(irqhnd % 256) "
+        << "            STA IRQ_HND_VECTOR_LO "
+        << "            LDA #(irqhnd / 256) "
+        << "            STA IRQ_HND_VECTOR_HI "
+        << "            CLI "
+        << "oldhnd:     .WORD $0000 "
+        << "irqhnd:     INC FRAME_COLOR "
+        << "            JMP [oldhnd] "
+        ;
+
+    testAssembly(prog, 
+        MemBlocks(
+            {
+                {
+                    0x2000, 
+                    { 
+                        0xad, 0x14, 0x03, 
+                        0x8d, 0x18, 0x20,
+                        0xad, 0x15, 0x03, 
+                        0x8d, 0x19, 0x20,
+                        0x78, 
+                        0xa9, 0x1a, 
+                        0x8d, 0x14, 0x03, 
+                        0xa9, 0x20, 
+                        0x8d, 0x15, 0x03, 
+                        0x58,
+                        0x00, 0x00, 
+                        0xee, 0x20, 0xd0, 
+                        0x6c, 0x18, 0x20
+                    }
+                }
+            })
+        );        
+}
+
+TEST_CASE( "resolve indexed-indirect and indexed-indirect base addresses", "6502 Assembler" )
+{
+    std::stringstream prog;
+    prog
+        << "            .ORG $2000 " << std::endl
+        << "            LDA #MY_OPERAND " << std::endl
+        << "            LDA [MY_OPERAND],Y " << std::endl
+        << "            LDA [MY_OPERAND,X] " << std::endl
+        << "            RTS " << std::endl
+        << "            MY_OPERAND = $FE " << std::endl
+    ;
+
+    testAssembly(prog, MemBlocks({{0x2000, { 0xa9,0xfe, 0xb1,0xfe, 0xa1,0xfe, 0x60 }}}));     
+}
+
 TEST_CASE( "branching and jumping", "6502 Assembler" )
 {
     std::stringstream prog;
@@ -152,6 +217,8 @@ TEST_CASE( "calling subroutines", "6502 Assembler" )
             })
         ); 
 }
+
+
 
 
 } /* namespace asm6502 */

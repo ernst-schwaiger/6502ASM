@@ -55,9 +55,4 @@ make -j
 ```
 
 ## ToDos
-* Add support for deferred config also for immediate operands
-* Add argument length 1/2 byte and info for potential zero page addressing also
-* Add semantic checks: Indexed indirect, indirect indexed on non-zero base
-* Add warning: zero-page defined after code that references it. zero-page opt cannot be made
-(does non zero page with zero page operand actually work?)
 * Test for all ASM commands including all addressing modes

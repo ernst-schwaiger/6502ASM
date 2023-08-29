@@ -265,13 +265,10 @@ MOS6502Listener::MOS6502Listener(char const *pFileName) :
         payload{},
         codeLines{}
 {
-    // TODO Auto-generated constructor stub
-
 }
 
 MOS6502Listener::~MOS6502Listener()
 {
-    // TODO Auto-generated destructor stub
 }
 
 void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ctx)
@@ -360,8 +357,7 @@ void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx
     }
     else
     {
-        // FIXME: We could not evaluate the expression, something was missing
-        // issue a semantic error here
+        addMissingSymbolError(symName, line(ctx), col(ctx));
     }
 }
 
@@ -385,21 +381,8 @@ void MOS6502Listener::exitDir_statement(MOS6502Parser::Dir_statementContext *ctx
 
 void MOS6502Listener::exitImm_statement(MOS6502Parser::Imm_statementContext *ctx)
 {
-    appendByteToPayload(findOpCode(imm_opcodes, ctx->imm_opcode()->getText()));
-
-    // expressions for immediate values shall be deducible immediately
-    // if not, issue an error
-
-    auto immOperand = popExpression();
-
-    if (immOperand != std::nullopt)
-    {
-        appendByteToPayload(immOperand);
-    }
-    else
-    {
-        addMissingSymbolError(ctx->imm_operand()->getText(), ctx);
-    }
+    auto opCode = findOpCode(imm_opcodes, ctx->imm_opcode()->getText());
+    appendIdxIdrOrIdrIdxOrImmCmd(opCode, ctx);
 }
 
 void MOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx)
@@ -437,28 +420,54 @@ void MOS6502Listener::exitIdx_abs_statement(MOS6502Parser::Idx_abs_statementCont
 
 void MOS6502Listener::exitIdx_idr_statement(MOS6502Parser::Idx_idr_statementContext *ctx)
 {
-    auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
-    auto opcode = findOpCode(idx_idr_opcodes, opcodeStr);
-    TOptExprValue operand = popExpression();
-
-    if (operand != std::nullopt)
-    {
-        appendByteToPayload(opcode);
-        appendByteToPayload(operand.value() & 0xff);
-    }
+    auto opcode = findOpCode(idx_idr_opcodes, ctx->idx_idr_idx_opcode()->getText());
+    appendIdxIdrOrIdrIdxOrImmCmd(opcode, ctx);
 }
 
 void MOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementContext *ctx)
 {
-    auto opcodeStr = ctx->idx_idr_idx_opcode()->getText();
-    auto opcode = findOpCode(idr_idx_opcodes, opcodeStr);
-    TOptExprValue operand = popExpression();
+    auto opcode = findOpCode(idr_idx_opcodes, ctx->idx_idr_idx_opcode()->getText());
+    appendIdxIdrOrIdrIdxOrImmCmd(opcode, ctx);
+}
 
-    if (operand != std::nullopt)
+// opcode here is always implied zero-page
+void MOS6502Listener::appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4::ParserRuleContext const *ctx)
+{
+    shared_ptr<IExpression> pExpression = popNonEvalExpression();
+
+    if (pExpression != nullptr)
     {
-        appendByteToPayload(opcode);
-        appendByteToPayload(operand.value() & 0xff);
+        TOptExprValue optOperand = pExpression->eval(symbolTable);
+
+        if (optOperand != std::nullopt)
+        {
+            // We could evaluate the expression, write the code immediately
+            unsigned int operand = optOperand.value();
+
+            if (operand <= 0xff)
+            {
+                appendByteToPayload(opcode);
+                appendByteToPayload(operand & 0xff);
+            }
+            else
+            {
+                addOperandTooLargeError(operand, line(ctx), col(ctx));
+            }
+        }
+        else
+        {
+            // The expression could not be evaluated due to a missing symbol we don't know yet
+            // Since we now have to reserve payload for the statement, we reserve 2 bytes here
+            // one for the opcode, one for the zero-based address
+            makeDeferredExpression(opcode, 2, pExpression, currentAddress, line(ctx), col(ctx));
+        }
     }
+    else
+    {
+        // Something went wrong. We do not have an expression for our command at all!
+        addInternalError(line(ctx), col(ctx));
+    }
+
 }
 
 
@@ -489,21 +498,25 @@ void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opco
         }
         else
         {
-            // The expression could not be evaluated, perhaps due to a missing symbol. 
-            // Assume for now, we have a non-Zero page base address for our indexed or absolute statement
-            deferredExpressionStatements.push_back(DeferredExpressionEval(opcode, pExpression, currentAddress, line(ctx), col(ctx)));
-
-            // reserve 3 bytes for that statement, opcode + 2 byte operands
-            appendByteToPayload(0xff);
-            appendByteToPayload(0xff);
-            appendByteToPayload(0xff);
+            // The expression could not be evaluated due to a missing symbol we don't know yet
+            // Since we now have to reserve payload for the statement, we reserve 3 bytes here
+            // one for the opcode, two for the potential 16 bit address
+            makeDeferredExpression(opcode, 3, pExpression, currentAddress, line(ctx), col(ctx));
         }
     }
     else
     {
-        // FIXME: Something went wrong. We do not have an expression for our command at all!
+        // Something went wrong. We do not have an expression for our command at all!
+        addInternalError(line(ctx), col(ctx));
     }
 }
+
+void MOS6502Listener::makeDeferredExpression(unsigned char opcode, uint8_t opNrBytes, shared_ptr<IExpression> pExpression, unsigned int currentAddress, size_t line, size_t col )
+{
+    deferredExpressionStatements.push_back(DeferredExpressionEval(opcode, opNrBytes, pExpression, currentAddress, line, col));
+    do { appendByteToPayload(0xff); } while (--opNrBytes);
+}
+
 
 void MOS6502Listener::exitIdr_statement(MOS6502Parser::Idr_statementContext *ctx)
 {
@@ -543,23 +556,7 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
     }
     else
     {
-        if (ctx->symbol() != nullptr)
-        {
-            string symName = ctx->symbol()->getText();
-            optional<Sym> optSymbolVal = symbolTable.resolveSymbol(symName);
-
-            if (optSymbolVal == std::nullopt)
-            {
-                // FIXME: Check what is going on here
-                // if the symbol cannot be evaluated for now, add it as an unresolved symbol
-                expressionStack.emplace_back(make_shared<Symbol>(symName, line(ctx), col(ctx)));                
-            }
-            else
-            {
-                unsigned int resolvedSymVal = optSymbolVal.value().val;
-                expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal, line(ctx), col(ctx)));                
-            }
-        }
+        // Non operation expressions: labels, symbols, ... processed elsewhere
     }
 }
 
@@ -571,7 +568,6 @@ void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 
     if (optSymbolVal == std::nullopt)
     {
-        // FIXME: Check what is going on here
         // if the symbol cannot be evaluated for now, add it as an unresolved symbol
         expressionStack.emplace_back(make_shared<Symbol>(symName, line(ctx), col(ctx)));
     }
@@ -579,24 +575,19 @@ void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
     {
         resolvedSymVal = optSymbolVal.value().val;
         expressionStack.emplace_back(make_shared<Numeric>(resolvedSymVal, line(ctx), col(ctx)));
-    }
-
-    
+    }    
 }
 
 void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 {
     int val = convertDec(ctx->getText());
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-
-//    cout << "Dec8Val: " << val << endl;
 }
 
 void MOS6502Listener::exitDec(MOS6502Parser::DecContext * ctx)
 {
     int val = convertDec(ctx->getText());
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-    //cout << "DecVal: " << val << endl;
 }
 
 void MOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
@@ -604,7 +595,6 @@ void MOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
     // w/o leading $ sign
     int val = convertHex(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-    //cout << "Hex16Val: " << val << endl;
 }
 
 void MOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
@@ -612,7 +602,6 @@ void MOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
     // w/o leading $ sign
     int val = convertHex(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-    //cout << "Hex8Val: " << val << endl;
 }
 
 void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
@@ -620,7 +609,6 @@ void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
     // w/o leading % sign
     int val = convertBin(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-    //cout << "BinVal: " << val << endl;
 }
 
 void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
@@ -628,7 +616,6 @@ void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
     // w/o leading/trailing apos
     int val = ctx->getText()[1];
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
-    //cout << "CharVal: " << val << endl;
 }
 
 void MOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
@@ -736,13 +723,24 @@ void MOS6502Listener::resolveDeferredExpressions()
         if (eval != std::nullopt)
         {
             unsigned int operand = eval.value();
-            payload[defExprStmnt.address] = defExprStmnt.opCode;
-            payload[defExprStmnt.address + 1] = static_cast<unsigned char>(operand & 0xff);
-            payload[defExprStmnt.address + 2] = static_cast<unsigned char>((operand >> 8) & 0xff);
+            if ((operand > 255) && (defExprStmnt.opNrBytes < 3))
+            {
+                addOperandTooLargeError(operand, defExprStmnt.srcLine, defExprStmnt.srcCol);
+            }
+            else
+            {
+                payload[defExprStmnt.address] = defExprStmnt.opCode;
+                payload[defExprStmnt.address + 1] = static_cast<unsigned char>(operand & 0xff);
+
+                if (defExprStmnt.opNrBytes == 3)
+                {
+                    payload[defExprStmnt.address + 2] = static_cast<unsigned char>((operand >> 8) & 0xff);
+                }
+            }
         }
         else
         {
-            addUnresolvedDeferredSymbolError(defExprStmnt);
+            addMissingSymbolError(defExprStmnt.expr->getText(), defExprStmnt.srcLine, defExprStmnt.srcCol);
         }
     }
 }
@@ -783,7 +781,6 @@ TOptExprValue MOS6502Listener::peekExpression()
     }
     return ret;
 }
-
 
 vector<TOptExprValue> MOS6502Listener::popAllExpressions()
 {
@@ -854,17 +851,11 @@ void MOS6502Listener::addDByteToPayload(optional<unsigned short> optDbyte)
     }
 }
 
-void MOS6502Listener::addMissingSymbolError(std::string const &symName, antlr4::ParserRuleContext const *ctx)
+void MOS6502Listener::addMissingSymbolError(std::string const &symName, size_t line, size_t col)
 {
     std::stringstream strm;
     strm << "Symbol or expression \"" << symName << "\" could not be resolved.";
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
-}
-
-void MOS6502Listener::addUnresolvedDeferredSymbolError(DeferredExpressionEval const &unresolvedExpression)
-{
-    semanticErrors.push_back(
-        SemanticError{"Symbol or expression could not be determined.", fileName, unresolvedExpression.srcLine, unresolvedExpression.srcCol});
+    semanticErrors.push_back(SemanticError{strm.str(), fileName, line, col});
 }
 
 void MOS6502Listener::addUnresolvedBranchTargetError(IExpression const &branchTargetExpression)
@@ -902,5 +893,20 @@ void MOS6502Listener::addValueOutOfRangeError(unsigned int value, unsigned int m
     semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
+void MOS6502Listener::addOperandTooLargeError(unsigned int operand, size_t line, size_t col)
+{
+    std::stringstream strm;
+    strm 
+        << "The operation requires a one byte operand operand, but its value 0x" 
+        << std::hex << std::setw(4) << std::setfill('0') << operand << " does not fit into one byte."<< std::endl;
+    semanticErrors.push_back(SemanticError{strm.str(), fileName, line, col});
+
+}
+
+// These errors should not happen. Likely cause by programming bug
+void MOS6502Listener::addInternalError(size_t line, size_t col)
+{
+    semanticErrors.push_back(SemanticError{"Internal error.", fileName, line, col});
+}
 
 } /* namespace asm6502 */
