@@ -4,25 +4,24 @@
  *  Created on: 19.08.2018
  *      Author: Ernst
  */
-
-#include "MOS6502Listener.h"
-
-#include <iostream>
-#include <string>
-#include <iterator>
+#include <functional>
 #include <sstream>
 #include <stdexcept>
-#include <functional>
 #include <memory>
+#include <iostream>
+#include <iterator>
+#include <string>
+
+#include "MOS6502Listener.h"
 
 using namespace std;
 
 namespace asm6502
 {
 
-static unsigned char const jmp_indir_opcode = 0x6C;
+static uint8_t const jmp_indir_opcode = 0x6C;
 
-static map<string, unsigned char> dir_opcodes
+static map<string, uint8_t> const dir_opcodes
 {
     {"BRK", 0x00}, {"PHP", 0x08}, {"ASL", 0x0A}, {"CLC", 0x18}, {"PLP", 0x28}, {"ROL", 0x2A}, {"SEC", 0x38}, {"RTI", 0x40},
     {"PHA", 0x48}, {"LSR", 0x4A}, {"CLI", 0x58}, {"RTS", 0x60}, {"PLA", 0x68}, {"ROR", 0x6A}, {"SEI", 0x78}, {"DEY", 0x88},
@@ -30,68 +29,68 @@ static map<string, unsigned char> dir_opcodes
     {"DEX", 0xCA}, {"CLD", 0xD8}, {"INX", 0xE8}, {"NOP", 0xEA}, {"SED", 0xF8}
 };
 
-static map<string, unsigned char> imm_opcodes
+static map<string, uint8_t> const imm_opcodes
 {
     {"ORA", 0x09}, {"AND", 0x29}, {"EOR", 0x49}, {"ADC", 0x69}, {"LDY", 0xA0}, {"LDX", 0xA2}, {"LDA", 0xA9}, {"CPY", 0xC0},
     {"CMP", 0xC9}, {"CPX", 0xE0}, {"SBC", 0xE9}
 };
 
-static map<string, unsigned char> rel_opcodes
+static map<string, uint8_t> const rel_opcodes
 {
     {"BPL", 0x10}, {"BMI", 0x30}, {"BVC", 0x50}, {"BVS", 0x70}, {"BCC", 0x90}, {"BCS", 0xB0}, {"BNE", 0xD0}, {"BEQ", 0xF0}
 };
 
-static map<string, unsigned char> idx_x_opcodes
+static map<string, uint8_t> const idx_x_opcodes
 {
     {"ORA", 0x1D}, {"ASL", 0x1E}, {"AND", 0x3D}, {"ROL", 0x3E}, {"EOR", 0x5D}, {"LSR", 0x5E}, {"ADC", 0x7D}, {"ROR", 0x7E},
     {"STA", 0x9D}, {"LDY", 0xBC}, {"LDA", 0xBD}, {"CMP", 0xDD}, {"DEC", 0xDE}, {"SBC", 0xFD}, {"INC", 0xFE}
 };
 
-static map<string, unsigned char> idx_x_zpg_opcodes
+static map<string, uint8_t> const idx_x_zpg_opcodes
 {
     {"ORA", 0x15}, {"ASL", 0x16}, {"AND", 0x35}, {"ROL", 0x36}, {"EOR", 0x55}, {"LSR", 0x56}, {"ADC", 0x75}, {"ROR", 0x76},
     {"STY", 0x94}, {"STA", 0x95}, {"LDY", 0xB4}, {"LDA", 0xB5}, {"CMP", 0xD5}, {"DEC", 0xD6}, {"DBC", 0xF5}, {"INC", 0xF6}
 };
 
-static map<string, unsigned char> idx_y_opcodes
+static map<string, uint8_t> const idx_y_opcodes
 {
     {"ORA", 0x19}, {"AND", 0x39}, {"EOR", 0x59}, {"ADC", 0x79}, {"STA", 0x99}, {"LDA", 0xB9}, {"LDX", 0xBE}, {"CMP", 0xD9},
     {"SBC", 0xF9}
 };
 
-static map<string, unsigned char> idx_y_zpg_opcodes
+static map<string, uint8_t> const idx_y_zpg_opcodes
 {
     {"STX", 0x96}, {"LDX", 0xB6}
 };
 
-static map<string, unsigned char> abs_opcodes
+static map<string, uint8_t> const abs_opcodes
 {
     {"ORA", 0x0D}, {"ASL", 0x0E}, {"JSR", 0x20}, {"BIT", 0x2C}, {"AND", 0x2D}, {"ROL", 0x2E}, {"JMP", 0x4C},
     {"EOR", 0x4D}, {"LSR", 0x4E}, {"ADC", 0x6D}, {"ROR", 0x6E}, {"STY", 0x8C}, {"STA", 0x8D}, {"STX", 0x8E}, {"LDY", 0xAC},
     {"LDA", 0xAD}, {"LDX", 0xAE}, {"CPY", 0xCC}, {"CMP", 0xCD}, {"DEC", 0xCE}, {"CPX", 0xEC}, {"SBC", 0xED}, {"INC", 0xEE}
 };
 
-static map<string, unsigned char> abs_zpg_opcodes
+static map<string, uint8_t> const abs_zpg_opcodes
 {
     {"ORA", 0x05}, {"ASL", 0x06}, {"BIT", 0x24}, {"AND", 0x25}, {"ROL", 0x26}, {"EOR", 0x45}, {"LSR", 0x46}, {"ADC", 0x65},
     {"ROR", 0x66}, {"STY", 0x84}, {"STA", 0x85}, {"STX", 0x86}, {"LDY", 0xA4}, {"LDA", 0xA5}, {"LDX", 0xA6}, {"CPY", 0xC4},
     {"CMP", 0xC5}, {"DEC", 0xC6}, {"CPX", 0xE4}, {"SBC", 0xE5}, {"INC", 0xE6}
 };
 
-static map<string, unsigned char> idx_idr_opcodes
+static map<string, uint8_t> const idx_idr_opcodes
 {
     {"ORA", 0x01}, {"AND", 0x21}, {"EOR", 0x41}, {"ADC", 0x61}, {"STA", 0x81}, {"LDA", 0xA1}, {"CMP", 0xC1}, {"SBC", 0xE1}
 };
 
-static map<string, unsigned char> idr_idx_opcodes
+static map<string, uint8_t> const idr_idx_opcodes
 {
     {"ORA", 0x11}, {"AND", 0x31}, {"EOR", 0x51}, {"ADC", 0x71}, {"STA", 0x91}, {"LDA", 0xB1}, {"CMP", 0xD1}, {"SBC", 0xF1}
 };
 
 
-unsigned char findOpCode(map<string, unsigned char> const &opcodeMap, string const &opcode)
+auto findOpCode(map<string, uint8_t> const &opcodeMap, string const &opcode) -> uint8_t
 {
-    unsigned char ret = 0;
+    uint8_t ret = 0;
     auto pos = opcodeMap.find(opcode);
 
     if (pos != end(opcodeMap))
@@ -102,16 +101,16 @@ unsigned char findOpCode(map<string, unsigned char> const &opcodeMap, string con
     return ret;
 }
 
-pair<unsigned char, unsigned char> findIdxZpgOpCodes(map<string, unsigned char> const &opcodeMap, map<string, unsigned char> const &zpgOpcodeMap, string const &opCode)
+auto findIdxZpgOpCodes(map<string, uint8_t> const &opcodeMap, map<string, uint8_t> const &zpgOpcodeMap, string const &opCode) -> pair<uint8_t, uint8_t> 
 {
-    unsigned char idxOpCode = findOpCode(opcodeMap, opCode);
-    unsigned char zgpOpCode = findOpCode(zpgOpcodeMap, opCode);
+    uint8_t idxOpCode = findOpCode(opcodeMap, opCode);
+    uint8_t zgpOpCode = findOpCode(zpgOpcodeMap, opCode);
 
     return {idxOpCode, zgpOpCode};
 }
 
 
-function<TOptExprValue(TOptExprValue, TOptExprValue)> add = [](TOptExprValue arg1, TOptExprValue arg2)
+static function<TOptExprValue(TOptExprValue, TOptExprValue)> const add = [](TOptExprValue arg1, TOptExprValue arg2)
 {
     TOptExprValue ret = std::nullopt;
 
@@ -123,7 +122,7 @@ function<TOptExprValue(TOptExprValue, TOptExprValue)> add = [](TOptExprValue arg
     return ret;
 };
 
-function<TOptExprValue(TOptExprValue, TOptExprValue)> sub = [](TOptExprValue arg1, TOptExprValue arg2)
+static function<TOptExprValue(TOptExprValue, TOptExprValue)> const sub = [](TOptExprValue arg1, TOptExprValue arg2)
 {
     TOptExprValue ret = std::nullopt;
 
@@ -135,7 +134,7 @@ function<TOptExprValue(TOptExprValue, TOptExprValue)> sub = [](TOptExprValue arg
     return ret;
 };
 
-function<TOptExprValue(TOptExprValue, TOptExprValue)> div = [](TOptExprValue arg1, TOptExprValue arg2)
+static function<TOptExprValue(TOptExprValue, TOptExprValue)> const div = [](TOptExprValue arg1, TOptExprValue arg2)
 {
     TOptExprValue ret = std::nullopt;
 
@@ -147,7 +146,7 @@ function<TOptExprValue(TOptExprValue, TOptExprValue)> div = [](TOptExprValue arg
     return ret;
 };
 
-function<TOptExprValue(TOptExprValue, TOptExprValue)> mul = [](TOptExprValue arg1, TOptExprValue arg2)
+static function<TOptExprValue(TOptExprValue, TOptExprValue)> const mul = [](TOptExprValue arg1, TOptExprValue arg2)
 {
     TOptExprValue ret = std::nullopt;
 
@@ -159,7 +158,7 @@ function<TOptExprValue(TOptExprValue, TOptExprValue)> mul = [](TOptExprValue arg
     return ret;
 };
 
-function<TOptExprValue(TOptExprValue, TOptExprValue)> mod = [](TOptExprValue arg1, TOptExprValue arg2)
+static function<TOptExprValue(TOptExprValue, TOptExprValue)> const mod = [](TOptExprValue arg1, TOptExprValue arg2)
 {
     TOptExprValue ret = std::nullopt;
 
@@ -175,8 +174,8 @@ class ExpressionBase : public IExpression
 {
 public:
     ExpressionBase(size_t line_, size_t column_) : line{line_}, column{column_} {}
-    virtual size_t getLine() const override { return line; }
-    virtual size_t getColumn() const override { return column; }
+    [[nodiscard]] auto getLine() const -> size_t override { return line; }
+    [[nodiscard]] auto getColumn() const -> size_t override { return column; }
 private:
     size_t line;
     size_t column;
@@ -185,13 +184,13 @@ private:
 class Numeric : public ExpressionBase
 {
 public:
-    Numeric(unsigned int _val, size_t line_, size_t col_) : ExpressionBase {line_, col_}, val{_val} {}
-    virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
+    Numeric(uint32_t _val, size_t line_, size_t col_) : ExpressionBase {line_, col_}, val{_val} {}
+    [[nodiscard]] auto eval(SymbolTable const &symbolTable) const -> TOptExprValue override 
     {
-        return TOptExprValue(val);
+        return {val};
     }
 
-    virtual std::string getText() const override
+    [[nodiscard]] auto getText() const -> std::string override
     {
         std::stringstream strm;
         strm << val;
@@ -199,14 +198,14 @@ public:
     }
 
 private:
-    unsigned int const val;
+    uint32_t val;
 };
 
 class Symbol : public ExpressionBase
 {
 public:
-    Symbol(string const &_symbol, size_t line_, size_t col_) : ExpressionBase {line_, col_}, symbol{_symbol} {}
-    virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
+    Symbol(string const _symbol, size_t line_, size_t col_) : ExpressionBase {line_, col_}, symbol{_symbol} {}
+    [[nodiscard]] auto eval(SymbolTable const &symbolTable) const -> TOptExprValue override
     {
         TOptExprValue ret = std::nullopt;
 
@@ -220,7 +219,7 @@ public:
         return ret;
     }
 
-    virtual std::string getText() const override {    return symbol; }
+    [[nodiscard]] auto getText() const -> std::string override { return symbol; }
 
 private:
     string symbol;
@@ -230,8 +229,8 @@ class BinaryOperation : public ExpressionBase
 {
 public:
     BinaryOperation(
-        shared_ptr<IExpression> const _arg1, 
-        shared_ptr<IExpression> const _arg2, 
+        shared_ptr<IExpression> _arg1, 
+        shared_ptr<IExpression> _arg2, 
         function<TOptExprValue(TOptExprValue, TOptExprValue)> const *_op,
         size_t line_,
         size_t col_) :
@@ -241,12 +240,12 @@ public:
         op{_op}
         {};
 
-    virtual TOptExprValue eval(SymbolTable const &symbolTable) const override
+    [[nodiscard]] auto eval(SymbolTable const &symbolTable) const -> TOptExprValue override
     {
         return (*op)(arg1->eval(symbolTable), arg2->eval(symbolTable));
     }
 
-    virtual std::string getText() const override {    return "<<expression>>"; }
+    [[nodiscard]] auto getText() const -> std::string override { return "<<expression>>"; }
 
 private:
     shared_ptr<IExpression> const arg1;
@@ -258,20 +257,11 @@ private:
 MOS6502Listener::MOS6502Listener(char const *pFileName) :
         fileName{pFileName},
         currentAddress{0},
-        addressOfLine{-1},
-        branchTargets{},
-        symbolTable{},
-        expressionStack{},
-        payload{},
-        codeLines{}
+        addressOfLine{ADDR_INVALID}
 {
 }
 
-MOS6502Listener::~MOS6502Listener()
-{
-}
-
-void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ctx)
+void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext *ctx)
 {
     TOptExprValue optCurrAddr = popExpression();
     if (optCurrAddr != std::nullopt)
@@ -281,7 +271,7 @@ void MOS6502Listener::exitOrg_directive(MOS6502Parser::Org_directiveContext * ct
     } 
 }
 
-void MOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext * ctx)
+void MOS6502Listener::exitByte_directive(MOS6502Parser::Byte_directiveContext *ctx)
 {
     for (auto optByte : popAllExpressions())
     {
@@ -342,14 +332,12 @@ void MOS6502Listener::exitDbyte_directive(MOS6502Parser::Dbyte_directiveContext 
 void MOS6502Listener::exitLabel(MOS6502Parser::LabelContext *ctx)
 {
     string symName = ctx->ID()->getText();
-    std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
     addSymbolCheckAlreadyDefined(symName, currentAddress, ctx);
 }
 
 void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx)
 {
     string symName = ctx->ID()->getText();
-    std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
     TOptExprValue optExprVal = popExpression();
     if (optExprVal != std::nullopt)
     {
@@ -361,7 +349,7 @@ void MOS6502Listener::exitAss_directive(MOS6502Parser::Ass_directiveContext *ctx
     }
 }
 
-void MOS6502Listener::addSymbolCheckAlreadyDefined(string symName, unsigned int symVal, antlr4::ParserRuleContext *ctx)
+void MOS6502Listener::addSymbolCheckAlreadyDefined(string const &symName, uint32_t symVal, antlr4::ParserRuleContext *ctx)
 {
     std::optional<Sym> optSym = symbolTable.resolveSymbol(symName);
     if (optSym == std::nullopt)
@@ -393,7 +381,7 @@ void MOS6502Listener::exitRel_statement(MOS6502Parser::Rel_statementContext *ctx
     // run, since labels can be assigned here that have not yet been parsed
     auto label = make_shared<Symbol>(ctx->symbol()->getText(), line(ctx), col(ctx));
 
-    branchTargets.emplace_back(pair<unsigned int, shared_ptr<IExpression>>{currentAddress, label});
+    branchTargets.emplace_back(pair<uint32_t, shared_ptr<IExpression>>{currentAddress, label});
     ++currentAddress;
 }
 
@@ -431,7 +419,7 @@ void MOS6502Listener::exitIdr_idx_statement(MOS6502Parser::Idr_idx_statementCont
 }
 
 // opcode here is always implied zero-page
-void MOS6502Listener::appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4::ParserRuleContext const *ctx)
+void MOS6502Listener::appendIdxIdrOrIdrIdxOrImmCmd(uint8_t opcode, antlr4::ParserRuleContext const *ctx)
 {
     shared_ptr<IExpression> pExpression = popNonEvalExpression();
 
@@ -442,12 +430,12 @@ void MOS6502Listener::appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4:
         if (optOperand != std::nullopt)
         {
             // We could evaluate the expression, write the code immediately
-            unsigned int operand = optOperand.value();
+            uint32_t operand = optOperand.value();
 
-            if (operand <= 0xff)
+            if (operand <= 0xffU)
             {
                 appendByteToPayload(opcode);
-                appendByteToPayload(operand & 0xff);
+                appendByteToPayload(operand & 0xffU);
             }
             else
             {
@@ -471,7 +459,7 @@ void MOS6502Listener::appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4:
 }
 
 
-void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, antlr4::ParserRuleContext const *ctx)
+void MOS6502Listener::appendIdxOrZpgCmd(uint8_t opcode, uint8_t opcode_zpg, antlr4::ParserRuleContext const *ctx)
 {
     shared_ptr<IExpression> pExpression = popNonEvalExpression();
 
@@ -482,18 +470,18 @@ void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opco
         if (optOperand != std::nullopt)
         {
             // We could evaluate the expression, write the code immediately
-            unsigned int operand = optOperand.value();
+            uint32_t operand = optOperand.value();
 
             if (operand <= 0xff && opcode_zpg > 0)
             {
                 appendByteToPayload(opcode_zpg);
-                appendByteToPayload(operand & 0xff);
+                appendByteToPayload(operand & 0xffU);
             }
             else
             {
                 appendByteToPayload(opcode);
-                appendByteToPayload(operand & 0xff);
-                appendByteToPayload((operand >> 8) & 0xff);
+                appendByteToPayload(operand & 0xffU);
+                appendByteToPayload((operand >> 8U) & 0xffU);
             }
         }
         else
@@ -511,10 +499,10 @@ void MOS6502Listener::appendIdxOrZpgCmd(unsigned char opcode, unsigned char opco
     }
 }
 
-void MOS6502Listener::makeDeferredExpression(unsigned char opcode, uint8_t opNrBytes, shared_ptr<IExpression> pExpression, unsigned int currentAddress, size_t line, size_t col )
+void MOS6502Listener::makeDeferredExpression(uint8_t opcode, uint8_t opNrBytes, shared_ptr<IExpression> pExpression, uint32_t currentAddress, size_t line, size_t col )
 {
-    deferredExpressionStatements.push_back(DeferredExpressionEval(opcode, opNrBytes, pExpression, currentAddress, line, col));
-    do { appendByteToPayload(0xff); } while (--opNrBytes);
+    deferredExpressionStatements.emplace_back(DeferredExpressionEval(opcode, opNrBytes, pExpression, currentAddress, line, col));
+    do { appendByteToPayload(0xff); } while (--opNrBytes > 0);
 }
 
 
@@ -562,7 +550,7 @@ void MOS6502Listener::exitExpression(MOS6502Parser::ExpressionContext * ctx)
 
 void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 {
-    unsigned int resolvedSymVal = 0xffffffff; // this is what is put into our expression if the symbol could not be resolved
+    uint32_t resolvedSymVal = 0xffffffff; // this is what is put into our expression if the symbol could not be resolved
     string symName = ctx->ID()->getText();
     optional<Sym> optSymbolVal = symbolTable.resolveSymbol(symName);
 
@@ -580,41 +568,41 @@ void MOS6502Listener::exitSymbol(MOS6502Parser::SymbolContext *ctx)
 
 void MOS6502Listener::exitDec8(MOS6502Parser::Dec8Context * ctx)
 {
-    int val = convertDec(ctx->getText());
+    auto val = convertDec(ctx->getText());
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
 void MOS6502Listener::exitDec(MOS6502Parser::DecContext * ctx)
 {
-    int val = convertDec(ctx->getText());
+    auto val = convertDec(ctx->getText());
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
 void MOS6502Listener::exitHex16(MOS6502Parser::Hex16Context * ctx)
 {
     // w/o leading $ sign
-    int val = convertHex(ctx->getText().substr(1));
+    auto val = convertHex(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
 void MOS6502Listener::exitHex8(MOS6502Parser::Hex8Context * ctx)
 {
     // w/o leading $ sign
-    int val = convertHex(ctx->getText().substr(1));
+    auto val = convertHex(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
 void MOS6502Listener::exitBin8(MOS6502Parser::Bin8Context * ctx)
 {
     // w/o leading % sign
-    int val = convertBin(ctx->getText().substr(1));
+    auto val = convertBin(ctx->getText().substr(1));
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
 void MOS6502Listener::exitChar8(MOS6502Parser::Char8Context * ctx)
 {
     // w/o leading/trailing apos
-    int val = ctx->getText()[1];
+    auto val = ctx->getText()[1];
     expressionStack.emplace_back(make_shared<Numeric>(val, line(ctx), col(ctx)));
 }
 
@@ -629,9 +617,9 @@ void MOS6502Listener::exitData_string(MOS6502Parser::Data_stringContext * ctx)
     }
 }
 
-unsigned int MOS6502Listener::convertDec(string const &dec) const
+auto MOS6502Listener::convertDec(string const &dec) -> uint32_t
 {
-    int ret = 0;
+    uint32_t ret = 0;
     stringstream ss;
     ss << dec;
     ss >> ret;
@@ -639,9 +627,9 @@ unsigned int MOS6502Listener::convertDec(string const &dec) const
     return ret;
 }
 
-unsigned int MOS6502Listener::convertHex(string const &hexa) const
+auto MOS6502Listener::convertHex(string const &hexa) -> uint32_t
 {
-    int ret = 0;
+    uint32_t ret = 0;
     stringstream ss;
     ss << hex << hexa;
     ss >> ret;
@@ -649,13 +637,13 @@ unsigned int MOS6502Listener::convertHex(string const &hexa) const
     return ret;
 }
 
-unsigned int MOS6502Listener::convertBin(string const &bin) const
+auto MOS6502Listener::convertBin(string const &bin) -> uint32_t
 {
-    int ret = 0;
+    uint32_t ret = 0;
 
     for (auto c : bin)
     {
-        ret <<= 1;
+        ret <<= 1U;
 
         if (c == '1')
         {
@@ -668,10 +656,10 @@ unsigned int MOS6502Listener::convertBin(string const &bin) const
 
 void MOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
 {
-    unsigned int startAddress = 0;
-    unsigned int numberOfBytes = 0;
+    uint32_t startAddress = 0;
+    uint32_t numberOfBytes = 0;
 
-    if (addressOfLine >= 0)
+    if (addressOfLine != ADDR_INVALID)
     {
         startAddress = addressOfLine;
         numberOfBytes = currentAddress - addressOfLine;
@@ -683,25 +671,25 @@ void MOS6502Listener::exitLine(MOS6502Parser::LineContext *ctx)
     // the expressions parsed in this codeline are not used any more
     // clean up the list for the next code line
     expressionStack.clear();
-    addressOfLine = -1;
+    addressOfLine = ADDR_INVALID;
 }
 
 void MOS6502Listener::resolveBranchTargets()
 {
-    for (auto bt : branchTargets)
+    for (auto const &bt : branchTargets)
     {
-        unsigned int branchOperandAddress = bt.first;
+        uint32_t branchOperandAddress = bt.first;
         TOptExprValue destAddress = bt.second->eval(symbolTable);
 
         if (destAddress != std::nullopt)
         {
             // relative address: destination address minus
             // address after branch statement (i.e. after operand address)
-            int offset = destAddress.value() - (branchOperandAddress + 1);
+            auto offset = static_cast<int32_t>(destAddress.value() - (branchOperandAddress + 1));
 
             if (offset >= -128 && offset <= 127)
             {
-                payload[branchOperandAddress] = (offset & 0xff);
+                payload[branchOperandAddress] = static_cast<uint8_t>(offset & 0xffU);
             }
             else
             {
@@ -722,7 +710,7 @@ void MOS6502Listener::resolveDeferredExpressions()
         TOptExprValue eval = defExprStmnt.expr->eval(this->symbolTable);
         if (eval != std::nullopt)
         {
-            unsigned int operand = eval.value();
+            uint32_t operand = eval.value();
             if ((operand > 255) && (defExprStmnt.opNrBytes < 3))
             {
                 addOperandTooLargeError(operand, defExprStmnt.srcLine, defExprStmnt.srcCol);
@@ -730,11 +718,11 @@ void MOS6502Listener::resolveDeferredExpressions()
             else
             {
                 payload[defExprStmnt.address] = defExprStmnt.opCode;
-                payload[defExprStmnt.address + 1] = static_cast<unsigned char>(operand & 0xff);
+                payload[defExprStmnt.address + 1] = static_cast<uint8_t>(operand & 0xffU);
 
                 if (defExprStmnt.opNrBytes == 3)
                 {
-                    payload[defExprStmnt.address + 2] = static_cast<unsigned char>((operand >> 8) & 0xff);
+                    payload[defExprStmnt.address + 2] = static_cast<uint8_t>((operand >> 8U) & 0xffU);
                 }
             }
         }
@@ -745,15 +733,15 @@ void MOS6502Listener::resolveDeferredExpressions()
     }
 }
 
-MemBlocks MOS6502Listener::getAssembledMemBlocks() const
+auto MOS6502Listener::getAssembledMemBlocks() const -> MemBlocks
 {
-    return MemBlocks(codeLines, payload);
+    return { codeLines, payload };
 }
 
-TOptExprValue MOS6502Listener::popExpression()
+auto MOS6502Listener::popExpression() -> TOptExprValue
 {
     TOptExprValue ret = std::nullopt;
-    if (expressionStack.size() > 0)
+    if (!expressionStack.empty())
     {
         ret = expressionStack.back()->eval(symbolTable);
         expressionStack.pop_back();
@@ -761,10 +749,10 @@ TOptExprValue MOS6502Listener::popExpression()
     return ret;
 }
 
-shared_ptr<IExpression> MOS6502Listener::popNonEvalExpression()
+auto MOS6502Listener::popNonEvalExpression() -> shared_ptr<IExpression>
 {
     shared_ptr<IExpression> ret = nullptr;
-    if (expressionStack.size() > 0)
+    if (!expressionStack.empty())
     {
         ret = expressionStack.back();
         expressionStack.pop_back();
@@ -772,21 +760,21 @@ shared_ptr<IExpression> MOS6502Listener::popNonEvalExpression()
     return ret;
 }
 
-TOptExprValue MOS6502Listener::peekExpression()
+auto MOS6502Listener::peekExpression() -> TOptExprValue
 {
     TOptExprValue ret = std::nullopt;
-    if (expressionStack.size() > 0)
+    if (!expressionStack.empty())
     {
         ret = expressionStack.back()->eval(symbolTable);
     }
     return ret;
 }
 
-vector<TOptExprValue> MOS6502Listener::popAllExpressions()
+auto MOS6502Listener::popAllExpressions() -> vector<TOptExprValue>
 {
     vector<TOptExprValue> ret;
 
-    for (auto e : expressionStack)
+    for (auto const &e : expressionStack)
     {
         ret.push_back(e->eval(symbolTable));
     }
@@ -796,9 +784,9 @@ vector<TOptExprValue> MOS6502Listener::popAllExpressions()
     return ret;
 }
 
-void MOS6502Listener::appendByteToPayload(unsigned char byte)
+void MOS6502Listener::appendByteToPayload(uint8_t byte)
 {
-    if (addressOfLine < 0)
+    if (addressOfLine == ADDR_INVALID)
     {
         addressOfLine = currentAddress;
     }
@@ -806,7 +794,7 @@ void MOS6502Listener::appendByteToPayload(unsigned char byte)
     payload[currentAddress++] = byte;
 }
 
-void MOS6502Listener::appendByteToPayload(optional<unsigned char> optByte)
+void MOS6502Listener::appendByteToPayload(optional<uint8_t> optByte)
 {
     if (optByte != std::nullopt)
     {
@@ -815,17 +803,17 @@ void MOS6502Listener::appendByteToPayload(optional<unsigned char> optByte)
 }
 
 
-void MOS6502Listener::addWordToPayload(unsigned short word)
+void MOS6502Listener::addWordToPayload(uint16_t word)
 {
-    unsigned char lsb = word & 0xff;
-    unsigned char msb = (word >> 8) & 0xff;
+    uint8_t lsb = word & 0xffU;
+    uint8_t msb = static_cast<uint8_t>(word >> 8U) & 0xffU;
 
     // Little endian architecture
     appendByteToPayload(lsb);
     appendByteToPayload(msb);
 }
 
-void MOS6502Listener::addWordToPayload(optional<unsigned short> optWord)
+void MOS6502Listener::addWordToPayload(optional<uint16_t> optWord)
 {
     if (optWord != std::nullopt)
     {
@@ -833,17 +821,17 @@ void MOS6502Listener::addWordToPayload(optional<unsigned short> optWord)
     }
 }
 
-void MOS6502Listener::addDByteToPayload(unsigned short dbyte)
+void MOS6502Listener::addDByteToPayload(uint16_t dbyte)
 {
-    unsigned char lsb = dbyte & 0xff;
-    unsigned char msb = (dbyte >> 8) & 0xff;
+    uint8_t lsb = dbyte & 0xffU;
+    uint8_t msb = static_cast<uint8_t>(dbyte >> 8U) & 0xffU;
 
     // write as two bytes, ignoring endianess
     appendByteToPayload(msb);
     appendByteToPayload(lsb);
 }
 
-void MOS6502Listener::addDByteToPayload(optional<unsigned short> optDbyte)
+void MOS6502Listener::addDByteToPayload(optional<uint16_t> optDbyte)
 {
     if (optDbyte != std::nullopt)
     {
@@ -855,17 +843,17 @@ void MOS6502Listener::addMissingSymbolError(std::string const &symName, size_t l
 {
     std::stringstream strm;
     strm << "Symbol or expression \"" << symName << "\" could not be resolved.";
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, line, col});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, line, col});
 }
 
 void MOS6502Listener::addUnresolvedBranchTargetError(IExpression const &branchTargetExpression)
 {
     std::stringstream strm;
     strm << "Symbol or expression \"" << branchTargetExpression.getText() << "\" could not be resolved";
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
 }
 
-void MOS6502Listener::addBranchTargetTooFarError(IExpression const &branchTargetExpression, unsigned int branch, unsigned int target)
+void MOS6502Listener::addBranchTargetTooFarError(IExpression const &branchTargetExpression, uint32_t branch, uint32_t target)
 {
     std::stringstream strm;
     strm 
@@ -874,7 +862,7 @@ void MOS6502Listener::addBranchTargetTooFarError(IExpression const &branchTarget
         << " is too far away from the branch target \"" << branchTargetExpression.getText() << "\" at address 0x"
         << std::hex << std::setfill('0') << target << ".";
     
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, branchTargetExpression.getLine(), branchTargetExpression.getColumn()});
 }
 
 void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx)
@@ -883,30 +871,30 @@ void MOS6502Listener::addDuplicateSymbolError(std::string const &symName, Sym co
     strm << "Redefinition of Symbol \"" << symName << "\" detected. " << std::endl
          << "See previous definition at " << fileName << ":" << duplicate.line << ":" << duplicate.col << std::endl;
 
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
-void MOS6502Listener::addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx)
+void MOS6502Listener::addValueOutOfRangeError(uint32_t value, uint32_t min, uint32_t max, antlr4::ParserRuleContext const *ctx)
 {
     std::stringstream strm;
     strm << "Value \"" << value << "\" is out of its supported value range: [" << min << "," << max << "]."<< std::endl;
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, line(ctx), col(ctx)});
 }
 
-void MOS6502Listener::addOperandTooLargeError(unsigned int operand, size_t line, size_t col)
+void MOS6502Listener::addOperandTooLargeError(uint32_t operand, size_t line, size_t col)
 {
     std::stringstream strm;
     strm 
         << "The operation requires a one byte operand operand, but its value 0x" 
         << std::hex << std::setw(4) << std::setfill('0') << operand << " does not fit into one byte."<< std::endl;
-    semanticErrors.push_back(SemanticError{strm.str(), fileName, line, col});
+    semanticErrors.emplace_back(SemanticError{strm.str(), fileName, line, col});
 
 }
 
 // These errors should not happen. Likely cause by programming bug
 void MOS6502Listener::addInternalError(size_t line, size_t col)
 {
-    semanticErrors.push_back(SemanticError{"Internal error.", fileName, line, col});
+    semanticErrors.emplace_back(SemanticError{"Internal error.", fileName, line, col});
 }
 
 } /* namespace asm6502 */

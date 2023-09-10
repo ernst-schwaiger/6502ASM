@@ -25,16 +25,18 @@
 namespace asm6502
 {
 
-typedef std::optional<unsigned int> TOptExprValue;
+typedef std::optional<uint32_t> TOptExprValue;
+
+constexpr uint32_t ADDR_INVALID = 0xffffffffU;
 
 class IExpression
 {
 public:
     virtual ~IExpression(){};
-    virtual TOptExprValue eval(SymbolTable const &symbolTable) const = 0;
-    virtual std::string getText() const = 0;
-    virtual size_t getLine() const = 0;
-    virtual size_t getColumn() const = 0;
+    virtual auto eval(SymbolTable const &symbolTable) const -> TOptExprValue = 0;
+    virtual auto getText() const -> std::string = 0;
+    [[nodiscard]] virtual auto getLine() const -> size_t = 0;
+    [[nodiscard]] virtual auto getColumn() const -> size_t = 0;
 };
 
 // Implements a deferred expression evaluation for commands that use
@@ -43,7 +45,7 @@ public:
 class DeferredExpressionEval
 {
 public:
-    DeferredExpressionEval(unsigned char opCode_, uint8_t opNrBytes_, std::shared_ptr<IExpression> expr_, unsigned int address_, size_t srcLine_, size_t srcCol_) :
+    DeferredExpressionEval(uint8_t opCode_, uint8_t opNrBytes_, std::shared_ptr<IExpression> expr_, uint32_t address_, size_t srcLine_, size_t srcCol_) :
         expr{expr_},
         srcLine{srcLine_},
         srcCol{srcCol_},
@@ -55,16 +57,16 @@ public:
     std::shared_ptr<IExpression> expr;
     size_t srcLine;
     size_t srcCol;
-    unsigned int address;
-    unsigned char opCode; 
-    unsigned char opNrBytes;
+    uint32_t address;
+    uint8_t opCode; 
+    uint8_t opNrBytes;
 };
 
 class MOS6502Listener : public MOS6502BaseListener
 {
 public:
     MOS6502Listener(char const *pFileName);
-    virtual ~MOS6502Listener();
+    virtual ~MOS6502Listener() = default;
 
     void exitOrg_directive(MOS6502Parser::Org_directiveContext * /*ctx*/) override;
     void exitByte_directive(MOS6502Parser::Byte_directiveContext * /*ctx*/) override;
@@ -109,9 +111,9 @@ public:
 
 private:
 
-    unsigned int convertDec(std::string const &dec) const;
-    unsigned int convertHex(std::string const &hex) const;
-    unsigned int convertBin(std::string const &bin) const;
+    static uint32_t convertDec(std::string const &dec);
+    static uint32_t convertHex(std::string const &hex);
+    static uint32_t convertBin(std::string const &bin);
 
     TOptExprValue popExpression();
     TOptExprValue peekExpression();
@@ -119,39 +121,39 @@ private:
 
     std::vector<TOptExprValue> popAllExpressions();
 
-    void appendIdxOrZpgCmd(unsigned char opcode, unsigned char opcode_zpg, antlr4::ParserRuleContext const *ctx);
-    void appendIdxIdrOrIdrIdxOrImmCmd(unsigned char opcode, antlr4::ParserRuleContext const *ctx);
+    void appendIdxOrZpgCmd(uint8_t opcode, uint8_t opcode_zpg, antlr4::ParserRuleContext const *ctx);
+    void appendIdxIdrOrIdrIdxOrImmCmd(uint8_t opcode, antlr4::ParserRuleContext const *ctx);
 
-    void appendByteToPayload(unsigned char byte);
-    void appendByteToPayload(std::optional<unsigned char> optByte);
-    void addWordToPayload(unsigned short word);
-    void addWordToPayload(std::optional<unsigned short> optWord);
-    void addDByteToPayload(unsigned short dbyte);
-    void addDByteToPayload(std::optional<unsigned short> optDbyte);
+    void appendByteToPayload(uint8_t byte);
+    void appendByteToPayload(std::optional<uint8_t> optByte);
+    void addWordToPayload(uint16_t word);
+    void addWordToPayload(std::optional<uint16_t> optWord);
+    void addDByteToPayload(uint16_t dbyte);
+    void addDByteToPayload(std::optional<uint16_t> optDbyte);
 
-    void addSymbolCheckAlreadyDefined(std::string symName, unsigned int symVal, antlr4::ParserRuleContext *ctx);
+    void addSymbolCheckAlreadyDefined(std::string const &symName, uint32_t symVal, antlr4::ParserRuleContext *ctx);
     void addMissingSymbolError(std::string const &symName, size_t line, size_t col);
     void addUnresolvedBranchTargetError(IExpression const &branchTargetExpression); // for failed branch target resolution
-    void addBranchTargetTooFarError(IExpression const &branchTargetExpression, unsigned int branch, unsigned int target); // if branch and target are too far away, out of byte offset [-128 .. 127]
+    void addBranchTargetTooFarError(IExpression const &branchTargetExpression, uint32_t branch, uint32_t target); // if branch and target are too far away, out of byte offset [-128 .. 127]
     void addDuplicateSymbolError(std::string const &symName, Sym const &duplicate, antlr4::ParserRuleContext const *ctx);
-    void addValueOutOfRangeError(unsigned int value, unsigned int min, unsigned int max, antlr4::ParserRuleContext const *ctx);
-    void addOperandTooLargeError(unsigned int operand, size_t line, size_t col);
+    void addValueOutOfRangeError(uint32_t value, uint32_t min, uint32_t max, antlr4::ParserRuleContext const *ctx);
+    void addOperandTooLargeError(uint32_t operand, size_t line, size_t col);
     void addInternalError(size_t line, size_t col);
 
     size_t line(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getLine(); }
     size_t col(antlr4::ParserRuleContext const *ctx) { return ctx->getStart()->getCharPositionInLine(); }
 
-    void makeDeferredExpression(unsigned char opcode, uint8_t opNrBytes, std::shared_ptr<IExpression> pExpression, unsigned int currentAddress, size_t line, size_t col );
+    void makeDeferredExpression(uint8_t opcode, uint8_t opNrBytes, std::shared_ptr<IExpression> pExpression, uint32_t currentAddress, size_t line, size_t col );
 
 
     std::string fileName;
-    unsigned int currentAddress;
-    int addressOfLine;
-    std::vector<std::pair<unsigned int, std::shared_ptr<IExpression const>>> branchTargets; // branch tgt addresses to labels
+    uint32_t currentAddress;
+    uint32_t addressOfLine;
+    std::vector<std::pair<uint32_t, std::shared_ptr<IExpression const>>> branchTargets; // branch tgt addresses to labels
     std::vector<DeferredExpressionEval> deferredExpressionStatements;
     SymbolTable symbolTable;
     std::vector<std::shared_ptr<IExpression>> expressionStack; // expression stack for one code line, reset after each code line
-    std::map<unsigned int, unsigned char> payload;
+    std::map<uint32_t, uint8_t> payload;
     std::vector<CodeLine> codeLines;
     std::vector<asm6502::SemanticError> semanticErrors;
     std::vector<std::string> parseErrors;

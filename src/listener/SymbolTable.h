@@ -11,7 +11,7 @@ namespace asm6502
 class Sym
 {
 public:
-    Sym(size_t line_, size_t col_, unsigned int val_) : 
+    Sym(size_t line_, size_t col_, uint32_t val_) : 
         line{line_},
         col{col_},
         val{val_}
@@ -25,7 +25,7 @@ public:
 
     size_t line;
     size_t col;
-    unsigned int val;
+    uint32_t val;
 };
 
 class SymbolTable
@@ -45,7 +45,7 @@ public:
         return ret;
     }
 
-    void addSymbol(std::string const &symbol, size_t line, size_t col, unsigned int val)
+    void addSymbol(std::string const &symbol, size_t line, size_t col, uint32_t val)
     {
         // if a symbol aready existed, we overwrite it here
         // symbol clashes must be covered by the caller

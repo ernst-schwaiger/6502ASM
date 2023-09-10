@@ -1,15 +1,14 @@
 
-#include <string>
 #include <iostream>
-
-#include "ASM6502.h"
+#include <string>
 
 #include <ANTLRInputStream.h>
+#include <MOS6502Lexer.h>
+#include <MOS6502Parser.h>
 
-#include "MOS6502Lexer.h"
-#include "MOS6502Parser.h"
-#include "listener/MOS6502Listener.h"
+#include "ASM6502.h"
 #include "listener/MOS6502ErrorListener.h"
+#include "listener/MOS6502Listener.h"
 
 using namespace std;
 using namespace antlr4;
@@ -54,7 +53,7 @@ void assembleStream(std::istream &stream, char const *fileName, AssemblyStatus &
     }
 }
 
-AssemblyStatus assembleFile(char const *fileName)
+auto assembleFile(char const *fileName) -> AssemblyStatus
 {
     AssemblyStatus ret;
 

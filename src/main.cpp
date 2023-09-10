@@ -1,13 +1,9 @@
+#include <cassert>
+#include <cstdlib>
 #include <iostream>
-#include "ASM6502.h"
-
-
-extern "C"
-{
-#include <stdlib.h>
 #include <unistd.h>
-#include <assert.h>
-}
+
+#include "ASM6502.h"
 
 using namespace std;
 using namespace asm6502;
@@ -25,7 +21,7 @@ void usage(char const *argv0)
         << "    -p <progfile>: write machine code into a progfile (C64 .PRG)" << endl;
 }
 
-int main(int argc, char *argv[])
+auto main(int argc, char *argv[]) -> int
 {
     int ret = RET_OK;
 
@@ -60,7 +56,7 @@ int main(int argc, char *argv[])
     }
 
     // no parameters given -> default behavior: Output assembly and basic program
-    if ((assemblyOut ||  basicOut || prgFileOut) == false)
+    if (!(assemblyOut ||  basicOut || prgFileOut))
     {
         assemblyOut = true;
         basicOut = true;

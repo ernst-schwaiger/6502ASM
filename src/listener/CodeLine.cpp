@@ -1,7 +1,7 @@
-#include "CodeLine.h"
-
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+
+#include "CodeLine.h"
 #include "MemBlocks.h"
 
 using namespace asm6502;
@@ -10,7 +10,7 @@ using namespace asm6502;
 class TerminalNodeVisitor : public antlr4::tree::ParseTreeVisitor
 {
 public:
-    static std::vector<antlr4::tree::ParseTree *> getTerminalNodes(antlr4::RuleContext *ctx)
+    static auto getTerminalNodes(antlr4::RuleContext *ctx) -> std::vector<antlr4::tree::ParseTree *>
     {
         TerminalNodeVisitor visitor;
         // ctx may be invalid if ANTLR detected a parse error
@@ -22,13 +22,13 @@ public:
     }
 private:
 
-    TerminalNodeVisitor() {}; // shall only be created by the static method
+    TerminalNodeVisitor() = default; // shall only be created by the static method
 
-    virtual std::any visit(antlr4::tree::ParseTree *tree) { return 0; }
-    virtual std::any visitTerminal(antlr4::tree::TerminalNode *node) { return 0; }
-    virtual std::any visitErrorNode(antlr4::tree::ErrorNode *node) { return 0; }
+    auto visit(antlr4::tree::ParseTree *tree) -> std::any override { return 0; }
+    auto visitTerminal(antlr4::tree::TerminalNode *node) -> std::any override { return 0; }
+    auto visitErrorNode(antlr4::tree::ErrorNode *node) -> std::any override { return 0; }
 
-    virtual std::any visitChildren(antlr4::tree::ParseTree *node)
+    auto visitChildren(antlr4::tree::ParseTree *node) -> std::any override
     {
         if (node->children.empty())
         {
@@ -48,7 +48,7 @@ private:
     std::vector<antlr4::tree::ParseTree *> terminalNodes;
 };
 
-std::string CodeLine::get(asm6502::MemBlocks const &mb, bool addAssembly) const
+auto CodeLine::get(asm6502::MemBlocks const &mb, bool addAssembly) const -> std::string
 {
     std::stringstream strm;
 
@@ -57,7 +57,7 @@ std::string CodeLine::get(asm6502::MemBlocks const &mb, bool addAssembly) const
 
     if (addAssembly)
     {
-        int column = pl.length();
+        auto column = pl.length();
         while (column < 24)
         {
             strm << " ";
@@ -81,7 +81,7 @@ std::string CodeLine::get(asm6502::MemBlocks const &mb, bool addAssembly) const
 }
 
 
-std::string CodeLine::getMachineCode(MemBlocks const &mb) const
+auto CodeLine::getMachineCode(MemBlocks const &mb) const -> std::string
 {
     std::stringstream strm;
 
@@ -89,27 +89,27 @@ std::string CodeLine::getMachineCode(MemBlocks const &mb) const
     {
         strm << "0x" << std::hex << std::setw(4) << std::setfill('0') << startAddress << ":";
 
-        unsigned int lastByteAddr = startAddress + (lengthBytes - 1);
+        uint32_t lastByteAddr = startAddress + (lengthBytes - 1);
 
-        for (unsigned int addr = startAddress; addr < lastByteAddr; addr++)
+        for (uint32_t addr = startAddress; addr < lastByteAddr; addr++)
         {
-            strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(mb.getByteAt(addr)) << ",";
+            strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<uint16_t>(mb.getByteAt(addr)) << ",";
         }
 
-        strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<unsigned short>(mb.getByteAt(lastByteAddr));
+        strm << "0x" << std::setw(2) << std::setfill('0') << static_cast<uint16_t>(mb.getByteAt(lastByteAddr));
         strm << " ";
     }
 
     return strm.str();
 }
 
-std::string CodeLine::getLabel(MOS6502Parser::LineContext *ctx)
+auto CodeLine::getLabel(MOS6502Parser::LineContext *ctx) -> std::string
 {
     MOS6502Parser::LabelContext *labelCtx = ctx->label();
     return labelCtx != nullptr ? labelCtx->getText() : "";
 }
 
-std::string CodeLine::getAssembly(MOS6502Parser::LineContext *ctx)
+auto CodeLine::getAssembly(MOS6502Parser::LineContext *ctx) -> std::string
 {
     antlr4::RuleContext *dirOrStatementCtx = (ctx->directive() != nullptr) ? 
         static_cast<antlr4::RuleContext *>(ctx->directive()) : 
@@ -118,7 +118,7 @@ std::string CodeLine::getAssembly(MOS6502Parser::LineContext *ctx)
     return prettyPrintDirOrStatement(dirOrStatementCtx);
 }
 
-std::string CodeLine::prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) const
+auto CodeLine::prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) -> std::string
 {
     std::stringstream strm;
     std::vector<antlr4::tree::ParseTree *> terminalNodes = TerminalNodeVisitor::getTerminalNodes(dirOrStatementCtx);
@@ -133,17 +133,12 @@ std::string CodeLine::prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatem
     return strm.str();
 }
 
-std::string CodeLine::getWhitespaceBetweenTokens(antlr4::tree::ParseTree *terminalNode, antlr4::tree::ParseTree *prevTerminalNode) const
+auto CodeLine::getWhitespaceBetweenTokens(antlr4::tree::ParseTree *terminalNode, antlr4::tree::ParseTree *prevTerminalNode) -> std::string
 {
-    std::string sTermNode = terminalNode->getText();
-    std::string sPrevNode = (prevTerminalNode != nullptr) ?  prevTerminalNode->getText() : "";
-    char const *strTermNode = sTermNode.c_str();
-    char const *strPrevNode = sPrevNode.c_str();
-
     bool skipWS = ((prevTerminalNode == nullptr) ||
                    (prevTerminalNode->getText() == ".") ||
                    (prevTerminalNode->getText() == "#") ||
-                   ((terminalNode->getText().size() >= 1) && (terminalNode->getText().substr(0,1) == std::string(",")))
+                   ((!terminalNode->getText().empty()) && (terminalNode->getText().substr(0,1) == std::string(",")))
                   );
 
     return skipWS ? "" : " ";

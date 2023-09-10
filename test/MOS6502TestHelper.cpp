@@ -10,14 +10,14 @@ using namespace antlr4;
 namespace asm6502
 {
 
-AssemblyStatus parseStream(std::istream &stream, char const *fileName)
+auto parseStream(std::istream &stream, char const *fileName) -> AssemblyStatus 
 {
     AssemblyStatus ret;
     assembleStream(stream, fileName, ret);
     return ret;
 }
 
-std::string memBlockAsString(MemBlock const &mb)
+auto memBlockAsString(MemBlock const &mb) -> std::string
 {
     std::stringstream strm; 
     strm 
@@ -38,7 +38,7 @@ std::string memBlockAsString(MemBlock const &mb)
     return strm.str();
 }
 
-std::string getMemBlocksAsString(MemBlocks const &mbs)
+auto getMemBlocksAsString(MemBlocks const &mbs) -> std::string
 {
     std::stringstream strm; 
     for (size_t i = 0; i < mbs.getNumMemBlocks(); i++)
@@ -49,7 +49,7 @@ std::string getMemBlocksAsString(MemBlocks const &mbs)
     return strm.str();
 }
 
-static size_t getLineNumberFromErrorMessage(std::string const &errMsg)
+static auto getLineNumberFromErrorMessage(std::string const &errMsg) -> size_t
 {
     size_t lineNr = 0;
     auto posFirstColon = errMsg.find(":");
@@ -66,7 +66,7 @@ static size_t getLineNumberFromErrorMessage(std::string const &errMsg)
     return lineNr;
 }
 
-static std::string getErrorLineNumbersAsString(std::vector<size_t> errLineNrs)
+static auto getErrorLineNumbersAsString(std::vector<size_t> errLineNrs) -> std::string
 {
     std::stringstream strm;
     strm << "{";
@@ -86,7 +86,7 @@ static std::string getErrorLineNumbersAsString(std::vector<size_t> errLineNrs)
     return strm.str();
 }
 
-static std::vector<size_t> getErrorMsgLineNumbersSorted(std::vector<std::string> errMsgs)
+static auto getErrorMsgLineNumbersSorted(std::vector<std::string> errMsgs) -> std::vector<size_t>
 {
     std::vector<size_t> ret;
 
@@ -101,7 +101,7 @@ static std::vector<size_t> getErrorMsgLineNumbersSorted(std::vector<std::string>
 }
 
 // runs the passed prog through assembler
-void testAssembly(std::istream &prog, MemBlocks const &ref)
+auto testAssembly(std::istream &prog, MemBlocks const &ref) -> void
 {
     AssemblyStatus as = parseStream(prog, "");
 
@@ -122,7 +122,7 @@ void testAssembly(std::istream &prog, MemBlocks const &ref)
     }
 }
 
-void testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted)
+auto testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted) -> void
 {
     AssemblyStatus as = parseStream(prog, "");
 
@@ -152,9 +152,5 @@ void testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted
         }
     }
 }
-
-
-
-
 
 } // namespace

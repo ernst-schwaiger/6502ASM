@@ -1,10 +1,10 @@
 #ifndef MEM_BLOCKS_H
 #define MEM_BLOCKS_H
 
-#include "CodeLine.h"
 #include <vector>
 #include <iostream>
-#include <span>
+
+#include "CodeLine.h"
 
 namespace asm6502
 {
@@ -12,35 +12,35 @@ namespace asm6502
 class MemBlock
 {
 public:
-    MemBlock(unsigned int startAddress_, std::vector<unsigned char> const &bytes_) :
+    MemBlock(uint32_t startAddress_, std::vector<uint8_t> const &bytes_) :
         startAddress(startAddress_),
         bytes(bytes_)
     {}
 
-    bool operator == (MemBlock const &rhs) const
+    auto operator == (MemBlock const &rhs) const -> bool
     {
         return ((startAddress == rhs.startAddress) && (bytes == rhs.bytes));
     }
 
-    bool operator < (MemBlock const &rhs) const
+    auto operator < (MemBlock const &rhs) const -> bool
     {
         return (startAddress < rhs.startAddress);
     }
 
-    bool operator != (MemBlock const &rhs) const
+    auto operator != (MemBlock const &rhs) const -> bool
     {
         return !(*this == rhs);
     }
 
-    unsigned int getStartAddress() const { return startAddress; }
-    unsigned int getLengthBytes() const { return bytes.size(); }
-    unsigned char getByteAt(unsigned int idx) const { return bytes.at(idx); }
+    auto getStartAddress() const -> uint32_t { return startAddress; }
+    auto getLengthBytes() const -> uint32_t { return bytes.size(); }
+    auto getByteAt(uint32_t idx) const -> uint8_t { return bytes.at(idx); }
 
-    friend std::ostream & operator << (std::ostream &os, asm6502::MemBlock const &memBlock);
+    friend auto operator << (std::ostream &os, asm6502::MemBlock const &memBlock) -> std::ostream &;
 
 private:
-    unsigned int startAddress;
-    std::vector<unsigned char> bytes;
+    uint32_t startAddress;
+    std::vector<uint8_t> bytes;
 };
 
 // Calculates the list of contiguous Memory Blocks that contain the generated assembly code and the data sections
@@ -49,47 +49,47 @@ class MemBlocks
 {
 public:
     MemBlocks() {}
-    MemBlocks(std::vector<asm6502::CodeLine> const &codeLines_, std::map<unsigned int, unsigned char> const &payload) :
+    MemBlocks(std::vector<asm6502::CodeLine> const &codeLines_, std::map<uint32_t, uint8_t> const &payload) :
         codeLines { codeLines_ },
         memBlocks { getMemBlocks(codeLines_, payload) }
     {}
 
     MemBlocks(std::vector<asm6502::MemBlock> const &memBlocks_) : memBlocks(memBlocks_) {}
 
-    bool operator == (MemBlocks const &rhs) const
+    auto operator == (MemBlocks const &rhs) const -> bool
     {
         return (memBlocks == rhs.memBlocks);
     }
 
-    bool operator != (MemBlocks const &rhs) const
+    auto operator != (MemBlocks const &rhs) const -> bool
     {
         return !(memBlocks == rhs.memBlocks);
     }
 
-    unsigned int getNumMemBlocks() const { return memBlocks.size(); }
+    auto getNumMemBlocks() const -> uint32_t { return memBlocks.size(); }
 
-    MemBlock getMemBlockAt(unsigned int idx) const
+    auto getMemBlockAt(uint32_t idx) const -> MemBlock
     {
         return memBlocks.at(idx);
     }
 
-    std::string getMachineCode(bool includeAssembly) const;
-    std::string getBasicMemBlockInitializerListing() const;
-    unsigned char getByteAt(unsigned int address) const;
+    auto getMachineCode(bool includeAssembly) const -> std::string;
+    auto getBasicMemBlockInitializerListing() const -> std::string;
+    auto getByteAt(uint32_t address) const -> uint8_t;
 
-    friend std::ostream& operator<<(std::ostream& out, asm6502::MemBlocks const &memBlocks);
+    friend auto operator<<(std::ostream& os, asm6502::MemBlocks const &memBlocks) -> std::ostream&;
 
 private:
 
-    std::vector<MemBlock> getMemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<unsigned int, unsigned char> const &payload);
-    bool areAdjacent(asm6502::CodeLine const *prevCodeLine, asm6502::CodeLine const *currCodeLine) const;
+    static auto getMemBlocks(std::vector<asm6502::CodeLine> const &codeLines, std::map<uint32_t, uint8_t> const &payload) -> std::vector<MemBlock>;
+    static auto areAdjacent(asm6502::CodeLine const *prevCodeLine, asm6502::CodeLine const *currCodeLine) -> bool;
 
     std::vector<MemBlock> memBlocks;
     std::vector<asm6502::CodeLine> codeLines;
 };
 
-std::ostream & operator << (std::ostream &os, asm6502::MemBlocks const &memBlocks);
-std::ostream & operator << (std::ostream &os, asm6502::MemBlock const &memBlock);
+auto operator << (std::ostream &os, asm6502::MemBlocks const &memBlocks) -> std::ostream &;
+auto operator << (std::ostream &os, asm6502::MemBlock const &memBlock) -> std::ostream &;
 
 } // namespace
 #endif

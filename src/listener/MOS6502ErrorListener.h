@@ -2,6 +2,7 @@
 #define MOS6502_ERROR_LISTENER_H
 
 #include <BaseErrorListener.h>
+#include "MOS6502Listener.h"
 
 namespace asm6502
 {

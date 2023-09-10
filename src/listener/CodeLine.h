@@ -14,7 +14,7 @@ class MemBlocks;
 class CodeLine
 {
 public:
-    CodeLine(MOS6502Parser::LineContext *_ctx, unsigned int _startAddress, unsigned int _lengthBytes) :
+    CodeLine(MOS6502Parser::LineContext *_ctx, uint32_t _startAddress, uint32_t _lengthBytes) :
         startAddress {_startAddress },
         lengthBytes {_lengthBytes},
         label { getLabel(_ctx) },
@@ -22,20 +22,19 @@ public:
     {};
 
     std::string get(asm6502::MemBlocks const &mb, bool addAssembly) const;
-    unsigned int getStartAddress() const { return startAddress; }
-    unsigned int getLengthBytes() const { return lengthBytes; }
+    uint32_t getStartAddress() const { return startAddress; }
+    uint32_t getLengthBytes() const { return lengthBytes; }
 
 private:
+    auto getMachineCode(asm6502::MemBlocks const &mb) const -> std::string;
 
-    std::string getLabel(MOS6502Parser::LineContext *_ctx);
-    std::string getAssembly(MOS6502Parser::LineContext *_ctx);
+    static auto getLabel(MOS6502Parser::LineContext *_ctx) -> std::string;
+    static auto getAssembly(MOS6502Parser::LineContext *_ctx) -> std::string;
+    static auto prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) -> std::string;
+    static auto getWhitespaceBetweenTokens(antlr4::tree::ParseTree *terminalNode, antlr4::tree::ParseTree *prevTerminalNode) -> std::string;
 
-    std::string getMachineCode(asm6502::MemBlocks const &mb) const;
-    std::string prettyPrintDirOrStatement(antlr4::RuleContext *dirOrStatementCtx) const;
-    std::string getWhitespaceBetweenTokens(antlr4::tree::ParseTree *terminalNode, antlr4::tree::ParseTree *prevTerminalNode) const;
-
-    unsigned int startAddress;
-    unsigned int lengthBytes;
+    uint32_t startAddress;
+    uint32_t lengthBytes;
     std::string label;
     std::string assembly;
 };

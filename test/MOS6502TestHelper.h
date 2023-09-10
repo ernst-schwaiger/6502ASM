@@ -6,12 +6,12 @@
 namespace asm6502
 {
 
-AssemblyStatus parseStream(std::istream &stream, char const *fileName);
-std::string memBlockAsString(MemBlock const &mb);
-std::string getMemBlocksAsString(MemBlocks const &mbs);
+auto parseStream(std::istream &stream, char const *fileName) -> AssemblyStatus;
+auto memBlockAsString(MemBlock const &mb) -> std::string;
+auto getMemBlocksAsString(MemBlocks const &mbs) -> std::string;
 
-void testAssembly(std::istream &prog, MemBlocks const &ref);
-void testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted = {});
+auto testAssembly(std::istream &prog, MemBlocks const &ref) -> void;
+auto testErrors(std::istream &prog, std::vector<size_t> expectedErrorLinesSorted = {}) -> void;
 }
 
 #endif
