@@ -14,14 +14,11 @@ make -j
 
 ``ASM6502 <asmfile> [-a] [-b] [-p <progfile>]``
 
-``-a``: output assembly and machine code bytes"
+``-a``: output assembly and machine code bytes
 
-``-b``: output C64 basic program that pokes machine code into RAM"
+``-b``: output C64 basic program that pokes machine code into RAM
 
-``-p <progfile>``: write machine code into a progfile (C64 .PRG)" << endl;
-
-
-``ASM6502 <asmfile>`` produces machine code and BASIC program that copies the code into memory
+``-p <progfile>``: write machine code into a progfile (C64 .PRG)
 
 ``6502ASM examples/frame.asm`` produces
 
