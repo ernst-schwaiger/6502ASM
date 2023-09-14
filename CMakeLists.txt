@@ -19,12 +19,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 
+#
 # Add External ANTLR 4 CPP .cmake file to fetch ANTLR from github and to compile it
 #
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/antlr/cmake)
 
-# using /MD flag for antlr4_runtime (for Visual C++ compilers only)
+#
+# required if linking to static library
+add_definitions(-DANTLR4CPP_STATIC)
+
+# using /MT flag for antlr4_runtime (for Visual C++ compilers only)
 set(ANTLR4_WITH_STATIC_CRT OFF)
 set(ANTLR4_TAG 4.13.0)
 set(ANTLR4_ZIP_REPOSITORY https://github.com/antlr/antlr4/archive/refs/tags/4.13.0.zip)
