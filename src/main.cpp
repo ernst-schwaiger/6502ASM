@@ -1,9 +1,12 @@
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
-#include <unistd.h>
 
 #include "ASM6502.h"
+extern "C"
+{
+#include "getopt.h"
+}
 
 using namespace std;
 using namespace asm6502;

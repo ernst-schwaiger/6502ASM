@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.11)
-project(6502ASM VERSION 0.0.1 LANGUAGES CXX)
+project(6502ASM VERSION 0.0.1 LANGUAGES CXX C)
 
 #
 # For getting Catch2 sources
@@ -61,6 +61,7 @@ message(STATUS "OUTFILES=${ANTLR_MOS6502Parser_CXX_OUTPUTS}")
 #
 add_executable(ASM6502
     src/main.cpp
+    src/getopt.c
     src/ASM6502.cpp
     src/listener/MOS6502Listener.cpp
     src/listener/CodeLine.cpp
