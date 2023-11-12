@@ -3,10 +3,7 @@
 #include <iostream>
 
 #include "ASM6502.h"
-extern "C"
-{
-#include "getopt.h"
-}
+#include "getopt.hpp"
 
 using namespace std;
 using namespace asm6502;
@@ -31,13 +28,13 @@ auto main(int argc, char *argv[]) -> int
     bool assemblyOut = false;
     bool basicOut = false;
     bool prgFileOut = false;
-    char const *pProgFilePath;
+    std::string pProgFilePath = "";
+    std::string asmFilePath = "";
 
-
-    int opt;
-    while ((opt = getopt(argc, argv, "abp:")) != -1)
+    auto options = get_opt::getopt(argc, argv, "abp:");
+    for (auto const &option : options)
     {
-        switch(opt)
+        switch(option.opt)
         {
             case 'a':
                 assemblyOut = true;
@@ -47,16 +44,44 @@ auto main(int argc, char *argv[]) -> int
                 break;
             case 'p':
                 prgFileOut = true;
-                pProgFilePath = optarg;
+                pProgFilePath = option.optarg;
+                break;
+            case '!': // no preceding dash
+                asmFilePath=option.optarg;
                 break;
             case '?':
                 usage(argv[0]);
                 ret = RET_ERR;
                 break;
+
             default:
                 assert(0);
         }
     }
+
+    // int opt;
+    // while ((opt = getopt(argc, argv, "abp:")) != -1)
+    // {
+    //     switch(opt)
+    //     {
+    //         case 'a':
+    //             assemblyOut = true;
+    //             break;
+    //         case 'b':
+    //             basicOut = true;
+    //             break;
+    //         case 'p':
+    //             prgFileOut = true;
+    //             pProgFilePath = optarg;
+    //             break;
+    //         case '?':
+    //             usage(argv[0]);
+    //             ret = RET_ERR;
+    //             break;
+    //         default:
+    //             assert(0);
+    //     }
+    // }
 
     // no parameters given -> default behavior: Output assembly and basic program
     if (!(assemblyOut ||  basicOut || prgFileOut))
@@ -67,11 +92,9 @@ auto main(int argc, char *argv[]) -> int
 
     if (ret == RET_OK)
     {
-        if (optind < argc ) // asmfile is one additional parameter w/o options
+        if (!asmFilePath.empty() ) // asmfile is one additional parameter w/o options
         {
-            char const *asmFilePath = argv[optind];
-
-            AssemblyStatus assemblyStatus = assembleFile(asmFilePath);
+            AssemblyStatus assemblyStatus = assembleFile(asmFilePath.c_str());
 
             if (assemblyStatus.errors.empty())
             {
@@ -89,7 +112,7 @@ auto main(int argc, char *argv[]) -> int
 
                 if (prgFileOut)
                 {
-                    writeProgFile(pProgFilePath, assemblyStatus.assembledProgram);
+                    writeProgFile(pProgFilePath.c_str(), assemblyStatus.assembledProgram);
                 }
             }
             else

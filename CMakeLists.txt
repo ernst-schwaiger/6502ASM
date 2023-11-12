@@ -61,7 +61,6 @@ message(STATUS "OUTFILES=${ANTLR_MOS6502Parser_CXX_OUTPUTS}")
 #
 add_executable(ASM6502
     src/main.cpp
-    src/getopt.c
     src/ASM6502.cpp
     src/listener/MOS6502Listener.cpp
     src/listener/CodeLine.cpp
